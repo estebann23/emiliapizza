@@ -12,10 +12,13 @@ import java.sql.*;
                 conn = DriverManager.getConnection(DB_URL, USER, PASS);
                 stmt = conn.createStatement();
 
+                System.out.println("Below the list of our available pizzas");
+                System.out.println();
+
                 ResultSet rs = stmt.executeQuery("SELECT pizza_id, pizza_name FROM Pizzas");
                 while (rs.next()) {
-                    System.out.print("Pizza Id: " + rs.getInt("pizza_id"));
-                    System.out.print(", Pizza Name: " + rs.getString("pizza_name"));
+                    System.out.print(rs.getInt("pizza_id"));
+                    System.out.println(". Pizza: " + rs.getString("pizza_name"));
                 }
             } catch (SQLException e) {
                 e.printStackTrace();
