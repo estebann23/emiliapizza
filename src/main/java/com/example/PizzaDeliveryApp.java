@@ -1,10 +1,11 @@
 package com.example;
 
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.sql.*;
 import java.util.ArrayList;
-import javax.swing.*;
-import javax.swing.border.EmptyBorder;
+import org.mindrot.jbcrypt.BCrypt;
 
 public class PizzaDeliveryApp {
     static final String DB_URL = "jdbc:mysql://localhost:3306/PIZZARE"; // Database URL
@@ -217,15 +218,16 @@ public class PizzaDeliveryApp {
     }
 
     // Method to insert new account into the Customer table in the database
-    private boolean createNewAccount(String name, String gender, String birthdate
-                                     , String emailAddress, String phoneNumber,
+    private boolean createNewAccount(String name, String gender, String birthdate,
+                                     String emailAddress, String phoneNumber,
                                      String username, String password) {
-        // Customer_ID is auto-incremented, so it's not included in the insert query
         String insertSQL = "INSERT INTO Customers (Name, Gender, Birthdate, Email_Address, Phone_Number, Username, Password) " +
                 "VALUES (?, ?, ?, ?, ?, ?, ?)";
 
         try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
              PreparedStatement pstmt = conn.prepareStatement(insertSQL)) {
+
+            String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
 
             pstmt.setString(1, name);
             pstmt.setString(2, gender);
@@ -233,7 +235,7 @@ public class PizzaDeliveryApp {
             pstmt.setString(4, emailAddress);
             pstmt.setString(5, phoneNumber);
             pstmt.setString(6, username);
-            pstmt.setString(7, password);
+            pstmt.setString(7, hashedPassword);  // Store the hashed password
 
             pstmt.executeUpdate();
             return true;
@@ -246,7 +248,28 @@ public class PizzaDeliveryApp {
 
     // Mock authentication for login
     private boolean isValidLogin(String username, String password) {
-        return "user".equals(username) && "pass".equals(password);
+        String query = "SELECT Password FROM Customers WHERE Username = ?";
+
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+
+            pstmt.setString(1, username);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                String storedHashedPassword = rs.getString("Password");
+
+                // Check if the entered password matches the stored hashed password
+                if (BCrypt.checkpw(password, storedHashedPassword)) {
+                    return true;
+                }
+            }
+
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+        }
+
+        return false;
     }
 
     private JLabel createHeaderLabel(String text) {

@@ -23,7 +23,7 @@ DROP TABLE IF EXISTS `customers`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `customers` (
-  `Customer_ID` int NOT NULL,
+  `Customer_ID` INT AUTO_INCREMENT PRIMARY KEY,
   `Name` varchar(100) NOT NULL,
   `Gender` varchar(10) DEFAULT NULL,
   `Birthdate` date DEFAULT NULL,
