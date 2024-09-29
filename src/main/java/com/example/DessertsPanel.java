@@ -7,40 +7,85 @@ import java.util.ArrayList;
 
 public class DessertsPanel extends JPanel {
     private final PizzaDeliveryApp app;
+    private final JButton cartButton;
 
     public DessertsPanel(PizzaDeliveryApp app) {
         this.app = app;
+        this.cartButton = new JButton("Cart: 0 Items");
         initialize();
     }
 
     private void initialize() {
+        // Get the list of dessert names from the database
         ArrayList<String> dessertNames = DatabaseHelper.getDessertNames();
 
         setLayout(new BorderLayout());
         setBorder(new EmptyBorder(20, 20, 20, 20));
 
-        JLabel header = new JLabel("Select the dessert(s) you want");
+        // Create and add the header label
+        JLabel header = new JLabel("Select Your Desserts");
+        header.setFont(new Font("Serif", Font.BOLD, 24));
         header.setHorizontalAlignment(JLabel.CENTER);
         add(header, BorderLayout.NORTH);
 
-        JPanel centerPanel = new JPanel(new GridLayout(0, 1));
+        // Create a panel to hold the dessert buttons
+        JPanel centerPanel = new JPanel(new GridLayout(0, 2, 15, 15)); // 2-column grid
+        centerPanel.setBorder(new EmptyBorder(20, 20, 20, 20));
+
+        // Create buttons for each dessert and add them to the center panel
         for (String dessert : dessertNames) {
-            JCheckBox checkBox = new JCheckBox(dessert);
-            centerPanel.add(checkBox);
+            JButton dessertButton = createDessertButton(dessert);
+            centerPanel.add(dessertButton);
         }
         add(centerPanel, BorderLayout.CENTER);
 
-        JButton finishButton = new JButton("Finish");
+        // Cart button in the top-right corner
+        JPanel topRightPanel = new JPanel(new BorderLayout());
+        cartButton.addActionListener(e -> showCartDialog());
+        topRightPanel.add(cartButton, BorderLayout.EAST);
+        add(topRightPanel, BorderLayout.NORTH);
+
+        // Create and add the "Finish Order" button
+        JButton finishButton = new JButton("Finish Order");
         add(finishButton, BorderLayout.SOUTH);
 
+        // Add action listener to the "Finish Order" button
         finishButton.addActionListener(e -> {
-            for (Component comp : centerPanel.getComponents()) {
-                if (comp instanceof JCheckBox && ((JCheckBox) comp).isSelected()) {
-                    app.getOrder().add(((JCheckBox) comp).getText());
-                }
+            if (app.getOrder().isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Please select at least one dessert", "No Selection", JOptionPane.WARNING_MESSAGE);
+            } else {
+                JOptionPane.showMessageDialog(this, "Order Complete!\n" + String.join(", ", app.getOrder()), "Order Summary", JOptionPane.INFORMATION_MESSAGE);
+                app.navigateTo(PanelNames.LOGIN_PANEL); // Go back to login after finishing the order
             }
-            JOptionPane.showMessageDialog(this, "Order Complete!\n" + String.join(", ", app.getOrder()), "Order Summary", JOptionPane.INFORMATION_MESSAGE);
-            app.navigateTo(PanelNames.LOGIN_PANEL);
         });
+    }
+
+    // Method to create dessert buttons
+    private JButton createDessertButton(String dessertName) {
+        JButton dessertButton = new JButton(dessertName);
+        dessertButton.setFont(new Font("Arial", Font.PLAIN, 16));
+        dessertButton.setPreferredSize(new Dimension(150, 50));
+
+        // Add action listener to add dessert to the order and update the cart button
+        dessertButton.addActionListener(e -> {
+            app.getOrder().add(dessertName);
+            updateCartButton();
+        });
+
+        return dessertButton;
+    }
+
+    // Method to update the cart button with the current number of items
+    private void updateCartButton() {
+        cartButton.setText("Cart: " + app.getOrder().size() + " Items");
+    }
+
+    // Method to show a dialog with the current order
+    private void showCartDialog() {
+        if (app.getOrder().isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Your cart is empty!", "Cart", JOptionPane.INFORMATION_MESSAGE);
+        } else {
+            JOptionPane.showMessageDialog(this, "Your Cart: \n" + String.join(", ", app.getOrder()), "Cart", JOptionPane.INFORMATION_MESSAGE);
+        }
     }
 }

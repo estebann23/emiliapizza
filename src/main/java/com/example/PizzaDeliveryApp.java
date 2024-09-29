@@ -1,7 +1,6 @@
 package com.example;
 
 import javax.swing.*;
-import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.util.ArrayList;
 
@@ -18,7 +17,7 @@ public class PizzaDeliveryApp {
     private void initializeUI() {
         frame = new JFrame("Emilia Pizza Delivery");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(500, 400);
+        frame.setSize(500, 600); // Standard size for all panels
 
         cardLayout = new CardLayout();
         mainPanel = new JPanel(cardLayout);
@@ -35,12 +34,26 @@ public class PizzaDeliveryApp {
         frame.setVisible(true);
     }
 
+    // Method to navigate between panels
     public void navigateTo(String panelName) {
         cardLayout.show(mainPanel, panelName);
     }
 
+    // Method to navigate to pizza details
+    public void navigateToPizzaDetails(Pizza pizza) {
+        PizzaDetailsPanel detailsPanel = new PizzaDetailsPanel(this, pizza);
+        mainPanel.add(detailsPanel, PanelNames.PIZZA_DETAILS_PANEL);
+        cardLayout.show(mainPanel, PanelNames.PIZZA_DETAILS_PANEL);
+    }
+
+    // Get the current order
     public ArrayList<String> getOrder() {
         return order;
+    }
+
+    // Add pizza to the order
+    public void addPizzaToOrder(String pizzaName) {
+        order.add(pizzaName);
     }
 
     public static void main(String[] args) {
