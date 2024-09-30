@@ -131,6 +131,26 @@ public class DatabaseHelper {
         return executeSelectQuery("SELECT dessert_name FROM Desserts", "dessert_name");
     }
 
+    // Helper method used in DeliveryPanel class
+    public static String getDeliveryDriver(String postcode) {
+        String deliveryDriver = null;
+        try (Connection conn = DriverManager.getConnection(DB_URL,USER,PASS);
+             PreparedStatement pstmt = conn.prepareStatement(
+                     "SELECT d.DeliveryDriver_Name FROM deliverydrivers d " +
+                             "JOIN postcode p ON d.DeliveryDriver_ID = p.DeliveryDriver_ID " +
+                             "WHERE p.postcode = ?")) {
+            pstmt.setString(1, postcode);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                deliveryDriver = rs.getString("DeliveryDriver_Name");
+            }
+            rs.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return deliveryDriver;
+    }
+
     // Helper method for querying the Items Selection from the DB
     private static ArrayList<String> executeSelectQuery(String query, String columnLabel) {
         ArrayList<String> resultList = new ArrayList<>();
