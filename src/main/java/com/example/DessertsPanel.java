@@ -32,7 +32,7 @@ public class DessertsPanel extends JPanel {
         JPanel centerPanel = new JPanel(new GridLayout(0, 2, 15, 15)); // 2-column grid
         centerPanel.setBorder(new EmptyBorder(20, 20, 20, 20));
 
-        // Create buttons for each dessert and add them to the center panel
+        // Creates buttons for each dessert and adds them to the center panel
         for (String dessert : dessertNames) {
             JButton dessertButton = createDessertButton(dessert);
             centerPanel.add(dessertButton);
@@ -45,17 +45,14 @@ public class DessertsPanel extends JPanel {
         topRightPanel.add(cartButton, BorderLayout.EAST);
         add(topRightPanel, BorderLayout.NORTH);
 
-        // Create and add the "Finish Order" button
+        //listener to the "Finish Order" button
         JButton finishButton = new JButton("Finish Order");
         add(finishButton, BorderLayout.SOUTH);
-
-        // Add action listener to the "Finish Order" button
         finishButton.addActionListener(e -> {
             if (app.getOrder().isEmpty()) {
                 JOptionPane.showMessageDialog(this, "Please select at least one dessert", "No Selection", JOptionPane.WARNING_MESSAGE);
             } else {
-                JOptionPane.showMessageDialog(this, "Order Complete!\n" + String.join(", ", app.getOrder()), "Order Summary", JOptionPane.INFORMATION_MESSAGE);
-                app.navigateTo(PanelNames.LOGIN_PANEL); // Go back to login after finishing the order
+                app.navigateTo(PanelNames.DELIVERY_PANEL);
             }
         });
     }
