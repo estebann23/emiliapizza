@@ -65,8 +65,8 @@ public class AccountCreationPanel extends JPanel {
             );
 
             if (accountCreated) {
-                JOptionPane.showMessageDialog(this, "Account Created!", "Success", JOptionPane.INFORMATION_MESSAGE);
-                app.navigateTo(PanelNames.LOGIN_PANEL); // Redirect back to login
+                JOptionPane.showMessageDialog(this, "Thank you for registering at Emilia Pizza", "Account Created", JOptionPane.INFORMATION_MESSAGE);
+                app.navigateTo(PanelNames.LOGIN_PANEL); // Redirect back to login menu
             } else {
                 JOptionPane.showMessageDialog(this, "Error creating account", "Error", JOptionPane.ERROR_MESSAGE);
             }

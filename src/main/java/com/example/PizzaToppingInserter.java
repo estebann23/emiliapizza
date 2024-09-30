@@ -8,20 +8,18 @@ import java.sql.SQLException;
 public class PizzaToppingInserter {
 
     // Database credentials
-    private static final String DB_URL = "jdbc:mysql://localhost:3306/PIZZARE";  // Update with your database URL
-    private static final String DB_USER = "root";  // Update with your database username
-    private static final String DB_PASSWORD = "02072005";  // Update with your database password
+    private static final String DB_URL = "jdbc:mysql://localhost:3306/emiliadb";
+    private static final String DB_USER = "root";
+    private static final String DB_PASSWORD = "mysql2311";
 
     public static void main(String[] args) {
         Connection connection = null;
         PreparedStatement statement = null;
 
         try {
-            // Establish connection to the database
             connection = DriverManager.getConnection(DB_URL, DB_USER, DB_PASSWORD);
 
-            // SQL Insert statement for pizza-topping relationship
-            String sql = "INSERT INTO pizzare.pizzatoppings (pizza_id, topping_id) VALUES (?, ?)";
+            String sql = "INSERT INTO emiliadb.pizzatoppings (pizza_id, topping_id) VALUES (?, ?)";
             statement = connection.prepareStatement(sql);
 
             // Mapping pizzas to their correct toppings (Pizza ID -> Topping IDs)

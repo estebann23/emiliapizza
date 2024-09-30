@@ -7,43 +7,50 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class DatabaseHelper {
-    private static final String DB_URL = "jdbc:mysql://localhost:3306/PIZZARE";
+    private static final String DB_URL = "jdbc:mysql://localhost:3306/emiliadb";
     private static final String USER = "root";
-    private static final String PASS = "02072005"; // Replace this with a more secure method.
+    private static final String PASS = "mysql2311";
 
-    // Create a new account (no change)
     public static boolean createAccount(String name, String gender, String birthdate,
                                         String emailAddress, String phoneNumber,
                                         String username, String password) {
-        String insertSQL = "INSERT INTO Customers (Name, Gender, Birthdate, Email_Address, Phone_Number, Username, Password) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?)";
 
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(insertSQL)) {
-
-            // Hash the password with BCrypt before storing it
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS)) {
             String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
 
-            // Set parameters for the PreparedStatement
-            pstmt.setString(1, name);
-            pstmt.setString(2, gender);
-            pstmt.setString(3, birthdate);
-            pstmt.setString(4, emailAddress);
-            pstmt.setString(5, phoneNumber);
-            pstmt.setString(6, username);
-            pstmt.setString(7, hashedPassword); // Store the hashed password
+            // Generate next Customer_ID
+            String query = "SELECT MAX(Customer_ID) FROM Customers";
+            Statement stmt = conn.createStatement();
+            ResultSet rs = stmt.executeQuery(query);
+            int customerId = 1;
+            if (rs.next()) {
+                customerId = rs.getInt(1) + 1;
+            }
 
-            // Execute the query
+            String insertSQL = "INSERT INTO Customers (Customer_ID, Name, Gender, Birthdate, Email_Address, Phone_Number, Username, Password) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+
+            PreparedStatement pstmt = conn.prepareStatement(insertSQL);
+
+            pstmt.setInt(1, customerId);
+            pstmt.setString(2, name);
+            pstmt.setString(3, gender);
+            pstmt.setString(4, birthdate);
+            pstmt.setString(5, emailAddress);
+            pstmt.setString(6, phoneNumber);
+            pstmt.setString(7, username);
+            pstmt.setString(8, hashedPassword);
+
             pstmt.executeUpdate();
             return true;
 
         } catch (SQLException ex) {
             ex.printStackTrace();
-            return false; // Return false if there is an error during account creation
+            return false;
         }
     }
 
-    // Method to authenticate a user during login (no change)
+    // Method to authenticate a user during login
     public static boolean authenticateUser(String username, String password) {
         String query = "SELECT Password FROM Customers WHERE Username = ?";
 
@@ -65,7 +72,6 @@ public class DatabaseHelper {
         return false;
     }
 
-    // Retrieve pizza names from the database (existing method)
     public static ArrayList<String> getPizzaNames() {
         return executeSelectQuery("SELECT pizza_name FROM Pizzas", "pizza_name");
     }
@@ -74,9 +80,9 @@ public class DatabaseHelper {
         List<Pizza> pizzas = new ArrayList<>();
 
         String query = "SELECT p.pizza_id, p.pizza_name, t.topping_name, t.topping_price, t.topping_isvegan, t.toppping_isvegetarian " +
-                "FROM pizzare.pizzas p " +
-                "JOIN pizzare.pizzatoppings pt ON p.pizza_id = pt.pizza_id " +
-                "JOIN pizzare.toppings t ON pt.topping_id = t.topping_id";
+                "FROM emiliadb.pizzas p " +
+                "JOIN emiliadb.pizzatoppings pt ON p.pizza_id = pt.pizza_id " +
+                "JOIN emiliadb.toppings t ON pt.topping_id = t.topping_id";
 
         try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
              PreparedStatement pstmt = conn.prepareStatement(query);
@@ -117,17 +123,15 @@ public class DatabaseHelper {
 
         return pizzas;
     }
-    // Retrieve drinks names from the database (existing method)
     public static ArrayList<String> getDrinksNames() {
         return executeSelectQuery("SELECT drink_name FROM Drinks", "drink_name");
     }
 
-    // Retrieve dessert names from the database (existing method)
     public static ArrayList<String> getDessertNames() {
         return executeSelectQuery("SELECT dessert_name FROM Desserts", "dessert_name");
     }
 
-    // Helper method to execute select queries (existing method)
+    // Helper method for querying the Items Selection from the DB
     private static ArrayList<String> executeSelectQuery(String query, String columnLabel) {
         ArrayList<String> resultList = new ArrayList<>();
         try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);

@@ -23,7 +23,7 @@ DROP TABLE IF EXISTS `customers`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `customers` (
-  `Customer_ID` INT AUTO_INCREMENT PRIMARY KEY,
+  `Customer_ID` int NOT NULL,
   `Name` varchar(100) NOT NULL,
   `Gender` varchar(10) DEFAULT NULL,
   `Birthdate` date DEFAULT NULL,
@@ -32,7 +32,7 @@ CREATE TABLE `customers` (
   `Email_Address` varchar(100) DEFAULT NULL,
   `Phone_Number` varchar(9) DEFAULT NULL,
   `Username` varchar(50) NOT NULL,
-  `Password` varchar(50) NOT NULL,
+  `Password` varchar(100) DEFAULT NULL,
   `canBirthDay` tinyint(1) DEFAULT '1',
   `canDiscount` tinyint(1) DEFAULT '0',
   `PizzasOrdered` int DEFAULT '0',
@@ -48,6 +48,7 @@ CREATE TABLE `customers` (
 
 LOCK TABLES `customers` WRITE;
 /*!40000 ALTER TABLE `customers` DISABLE KEYS */;
+INSERT INTO `customers` VALUES (1,'admin team','non-gender','2000-01-01',NULL,NULL,'admin@admin.com','674947181','admin','$2a$10$fA326k4jnbs.IE.WCYiXquE0aRS4J8CN1gIevY5XFeshfsH3SUeTO',1,0,0);
 /*!40000 ALTER TABLE `customers` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -275,6 +276,7 @@ CREATE TABLE `pizzatoppings` (
 
 LOCK TABLES `pizzatoppings` WRITE;
 /*!40000 ALTER TABLE `pizzatoppings` DISABLE KEYS */;
+INSERT INTO `pizzatoppings` VALUES (1,1),(5,1),(1,2),(2,3),(2,4),(3,5),(2,6),(3,7),(4,8),(5,10),(9,10),(5,11),(5,12),(7,18),(7,19),(3,20),(7,20),(8,22),(8,23),(10,26),(9,27),(8,28),(10,28),(6,30),(9,30),(6,31);
 /*!40000 ALTER TABLE `pizzatoppings` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -341,4 +343,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2024-09-24 23:41:54
+-- Dump completed on 2024-09-30 16:48:20

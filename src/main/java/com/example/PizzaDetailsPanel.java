@@ -22,7 +22,7 @@ public class PizzaDetailsPanel extends JPanel {
         detailsPanel.setLayout(new BoxLayout(detailsPanel, BoxLayout.Y_AXIS));
         detailsPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20)); // Padding around the panel
 
-        // Pizza name (centered)
+        // Pizza name
         JLabel pizzaNameLabel = new JLabel("<html><h2 style='text-align:center;'>" + pizza.getName() + "</h2></html>");
         pizzaNameLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
         detailsPanel.add(pizzaNameLabel);
