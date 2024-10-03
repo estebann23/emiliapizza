@@ -3,88 +3,109 @@ package com.example;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
-import java.util.ArrayList;
+import java.util.List;
 
 public class DrinksPanel extends JPanel {
     private final PizzaDeliveryApp app;
-    private final JButton cartButton;
+    private JButton cartButton;
 
     public DrinksPanel(PizzaDeliveryApp app) {
         this.app = app;
-        this.cartButton = new JButton("Cart: 0 Items");
         initialize();
     }
 
     private void initialize() {
-        // Get the list of drink names from the database
-        ArrayList<String> drinksNames = DatabaseHelper.getDrinksNames();
-
         setLayout(new BorderLayout());
-        setBorder(new EmptyBorder(20, 20, 20, 20));
+        setPreferredSize(new Dimension(500, 600));
 
-        // Create and add the header label
-        JLabel header = new JLabel("Select Your Drinks");
-        header.setFont(new Font("Serif", Font.BOLD, 24));
-        header.setHorizontalAlignment(JLabel.CENTER);
-        add(header, BorderLayout.NORTH);
+        // Initialize cart button
+        cartButton = new JButton();
 
-        // Create a panel to hold the drink buttons
-        JPanel centerPanel = new JPanel(new GridLayout(0, 2, 15, 15)); // 2-column grid
-        centerPanel.setBorder(new EmptyBorder(20, 20, 20, 20));
+        // Add the top panel with title and cart button
+        JPanel topPanel = PanelHelper.createTopPanel("Drinks", cartButton, app);
+        add(topPanel, BorderLayout.NORTH);
 
-        // Create buttons for each drink and add them to the center panel
-        for (String drink : drinksNames) {
-            JButton drinkButton = createDrinkButton(drink);
-            centerPanel.add(drinkButton);
-        }
-        add(centerPanel, BorderLayout.CENTER);
+        // Get the list of drink objects from the database
+        List<Drink> drinks = DatabaseHelper.getDrinkDetails();
 
-        // Cart button in the top-right corner
-        JPanel topRightPanel = new JPanel(new BorderLayout());
-        cartButton.addActionListener(e -> showCartDialog());
-        topRightPanel.add(cartButton, BorderLayout.EAST);
-        add(topRightPanel, BorderLayout.NORTH);
+        JPanel drinkListPanel = new JPanel(new GridLayout(0, 1, 15, 15));
+        drinkListPanel.setBorder(new EmptyBorder(20, 20, 20, 20));
 
-        // Create and add the "Proceed to Desserts" button
-        JButton nextButton = new JButton("Proceed to Desserts");
-        add(nextButton, BorderLayout.SOUTH);
-
-        // Add action listener to the "Next" button
-        nextButton.addActionListener(e -> {
-            if (app.getOrder().isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Please select at least one drink", "No Selection", JOptionPane.WARNING_MESSAGE);
-            } else {
-                app.navigateTo(PanelNames.DESSERTS_PANEL);
-            }
-        });
-    }
-
-    // Method to create drink buttons
-    private JButton createDrinkButton(String drinkName) {
-        JButton drinkButton = new JButton(drinkName);
-        drinkButton.setFont(new Font("Arial", Font.PLAIN, 16));
-        drinkButton.setPreferredSize(new Dimension(150, 50));
-
-        // Add action listener to add drink to the order and update the cart button
-        drinkButton.addActionListener(e -> {
-            app.getOrder().add(drinkName);
-            updateCartButton();
-        });
-
-        return drinkButton;
-    }
-
-    // Method to update the cart button with the current number of items
-    private void updateCartButton() {
-        cartButton.setText("Cart: " + app.getOrder().size() + " Items");
-    }
-
-    // Method to show a dialog with the current order
-    private void showCartDialog() {
-        if (app.getOrder().isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Your cart is empty!", "Cart", JOptionPane.INFORMATION_MESSAGE);
+        if (drinks.isEmpty()) {
+            drinkListPanel.add(new JLabel("No drinks available."));
         } else {
-            JOptionPane.showMessageDialog(this, "Your Cart: \n" + String.join(", ", app.getOrder()), "Cart", JOptionPane.INFORMATION_MESSAGE);
+            for (Drink drink : drinks) {
+                JButton drinkButton = new JButton(drink.getName());
+                drinkButton.setPreferredSize(new Dimension(300, 50));
+                drinkButton.addActionListener(e -> showDrinkDetails(drink));
+                drinkListPanel.add(drinkButton);
+            }
         }
+
+        JScrollPane scrollPane = new JScrollPane(drinkListPanel);
+        add(scrollPane, BorderLayout.CENTER);
+
+        JPanel bottomPanel = new JPanel(new BorderLayout());
+
+        // Back button to navigate to the PizzaPanel
+        JButton backButton = new JButton("Back to Pizzas");
+        backButton.addActionListener(e -> app.navigateTo(PanelNames.PIZZAS_PANEL));
+
+        JButton nextButton = new JButton("Proceed to Desserts");
+        nextButton.addActionListener(e -> app.navigateTo(PanelNames.DESSERTS_PANEL));
+
+        bottomPanel.add(backButton, BorderLayout.WEST);
+        bottomPanel.add(nextButton, BorderLayout.EAST);
+
+        add(bottomPanel, BorderLayout.SOUTH);
+    }
+
+    private void showDrinkDetails(Drink drink) {
+        // Create a dialog for selecting drink quantity and showing price
+        JDialog dialog = new JDialog(app.getFrame(), "Drink Details", true);
+        dialog.setSize(400, 250);
+        dialog.setLayout(new BorderLayout(20, 20));
+
+        // Drink name and price
+        JLabel drinkLabel = new JLabel("<html><h2>" + drink.getName() + "</h2><p>Price: $" + String.format("%.2f", drink.getPrice()) + "</p></html>", JLabel.CENTER);
+        dialog.add(drinkLabel, BorderLayout.NORTH);
+
+        // Quantity selection panel
+        JPanel quantityPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        JLabel quantityLabel = new JLabel("Quantity:");
+        JSpinner quantitySpinner = new JSpinner(new SpinnerNumberModel(1, 1, 100, 1));
+
+        quantityPanel.add(quantityLabel);
+        quantityPanel.add(quantitySpinner);
+        dialog.add(quantityPanel, BorderLayout.CENTER);
+
+        // Buttons panel
+        JPanel buttonsPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 10));
+        JButton addToCartButton = new JButton("Add to Cart");
+        JButton cancelButton = new JButton("Cancel");
+
+        buttonsPanel.add(addToCartButton);
+        buttonsPanel.add(cancelButton);
+        dialog.add(buttonsPanel, BorderLayout.SOUTH);
+
+        // Add action listener to cancel button to close the dialog
+        cancelButton.addActionListener(e -> dialog.dispose());
+
+        // Add action listener to the addToCart button
+        addToCartButton.addActionListener(e -> {
+            int quantity = (int) quantitySpinner.getValue();
+            for (int i = 0; i < quantity; i++) {
+                app.getOrder().add(drink.getName());
+            }
+            updateCartButton();
+            dialog.dispose();
+        });
+
+        dialog.setLocationRelativeTo(app.getFrame());
+        dialog.setVisible(true);
+    }
+
+    public void updateCartButton() {
+        cartButton.setText("Cart: " + app.getOrder().size() + " Items");
     }
 }

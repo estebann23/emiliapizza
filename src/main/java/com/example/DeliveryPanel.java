@@ -73,7 +73,9 @@ public class DeliveryPanel extends JPanel {
         if (app.getOrder().isEmpty()) {
             JOptionPane.showMessageDialog(this, "Your cart is empty!", "Cart", JOptionPane.INFORMATION_MESSAGE);
         } else {
-            JOptionPane.showMessageDialog(this, "Your Order: \n" + String.join(", ", app.getOrder()), "Order", JOptionPane.INFORMATION_MESSAGE);
+            // Open the CartPanel
+            CartPanel cartPanel = new CartPanel(app);
+            cartPanel.setVisible(true);
         }
     }
 

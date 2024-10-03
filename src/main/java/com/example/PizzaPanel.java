@@ -1,5 +1,4 @@
 package com.example;
-
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
@@ -16,9 +15,17 @@ public class PizzaPanel extends JPanel {
 
     private void initialize() {
         setLayout(new BorderLayout());
-        setPreferredSize(new Dimension(500, 600)); // Standard panel size
+        setPreferredSize(new Dimension(500, 600));
 
-        List<Pizza> pizzas = DatabaseHelper.getPizzaDetails(); // Retrieve pizza list
+        // Initialize cart button
+        cartButton = new JButton();
+
+        // Add the top panel with title and cart button
+        JPanel topPanel = PanelHelper.createTopPanel("Pizza Menu", cartButton, app);
+        add(topPanel, BorderLayout.NORTH);
+
+        // Get the list of pizza objects from the database
+        List<Pizza> pizzas = DatabaseHelper.getPizzaDetails();
 
         JPanel pizzaListPanel = new JPanel(new GridLayout(0, 1, 15, 15));
         pizzaListPanel.setBorder(new EmptyBorder(20, 20, 20, 20));
@@ -29,7 +36,9 @@ public class PizzaPanel extends JPanel {
             for (Pizza pizza : pizzas) {
                 JButton pizzaButton = new JButton(pizza.getName());
                 pizzaButton.setPreferredSize(new Dimension(300, 50));
-                pizzaButton.addActionListener(e -> app.navigateToPizzaDetails(pizza));
+                pizzaButton.addActionListener(e -> {
+                    app.navigateToPizzaDetails(pizza);
+                });
                 pizzaListPanel.add(pizzaButton);
             }
         }
@@ -37,30 +46,17 @@ public class PizzaPanel extends JPanel {
         JScrollPane scrollPane = new JScrollPane(pizzaListPanel);
         add(scrollPane, BorderLayout.CENTER);
 
-        // Cart button and navigation controls
         JPanel bottomPanel = new JPanel(new BorderLayout());
-        cartButton = new JButton("Cart: 0 Items");
-        cartButton.addActionListener(e -> showCartDialog());
 
-        JButton nextButton = new JButton("Proceed to Drinks");
+        // Proceed to Drinks button
+        JButton nextButton = new JButton("Drinks");
         nextButton.addActionListener(e -> app.navigateTo(PanelNames.DRINKS_PANEL));
 
-        bottomPanel.add(cartButton, BorderLayout.WEST);
         bottomPanel.add(nextButton, BorderLayout.EAST);
+
         add(bottomPanel, BorderLayout.SOUTH);
     }
 
-    // Method to show the cart contents in a dialog
-    private void showCartDialog() {
-        List<String> order = app.getOrder();
-        if (order.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Your cart is empty!", "Cart", JOptionPane.INFORMATION_MESSAGE);
-        } else {
-            JOptionPane.showMessageDialog(this, "Your Cart: \n" + String.join(", ", order), "Cart", JOptionPane.INFORMATION_MESSAGE);
-        }
-    }
-
-    // Method to update the cart button with the current number of items
     public void updateCartButton() {
         cartButton.setText("Cart: " + app.getOrder().size() + " Items");
     }

@@ -7,9 +7,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class DatabaseHelper {
-    private static final String DB_URL = "jdbc:mysql://localhost:3306/emiliadb";
+    private static final String DB_URL = "jdbc:mysql://localhost:3306/PIZZARE";
     private static final String USER = "root";
-    private static final String PASS = "mysql2311";
+    private static final String PASS = "02072005";
 
     public static boolean createAccount(String name, String gender, String birthdate,
                                         String emailAddress, String phoneNumber,
@@ -76,13 +76,15 @@ public class DatabaseHelper {
         return executeSelectQuery("SELECT pizza_name FROM Pizzas", "pizza_name");
     }
 
+
+
     public static List<Pizza> getPizzaDetails() {
         List<Pizza> pizzas = new ArrayList<>();
 
         String query = "SELECT p.pizza_id, p.pizza_name, t.topping_name, t.topping_price, t.topping_isvegan, t.toppping_isvegetarian " +
-                "FROM emiliadb.pizzas p " +
-                "JOIN emiliadb.pizzatoppings pt ON p.pizza_id = pt.pizza_id " +
-                "JOIN emiliadb.toppings t ON pt.topping_id = t.topping_id";
+                "FROM PIZZARE.pizzas p " +
+                "JOIN PIZZARE.pizzatoppings pt ON p.pizza_id = pt.pizza_id " +
+                "JOIN PIZZARE.toppings t ON pt.topping_id = t.topping_id";
 
         try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
              PreparedStatement pstmt = conn.prepareStatement(query);
@@ -123,8 +125,91 @@ public class DatabaseHelper {
 
         return pizzas;
     }
+    public static List<Drink> getDrinkDetails() {
+        List<Drink> drinks = new ArrayList<>();
+        String query = "SELECT drink_name, drink_price FROM Drinks";
+
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(query);
+             ResultSet rs = pstmt.executeQuery()) {
+
+            while (rs.next()) {
+                String name = rs.getString("drink_name");
+                double price = rs.getDouble("drink_price");
+                drinks.add(new Drink(name, price));
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return drinks;
+    }
+
     public static ArrayList<String> getDrinksNames() {
         return executeSelectQuery("SELECT drink_name FROM Drinks", "drink_name");
+    }
+    public static double getDrinkPriceByName(String drinkName) {
+        double price = 0.0;
+        String query = "SELECT drink_price FROM Drinks WHERE drink_name = ?";
+
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+
+            pstmt.setString(1, drinkName);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                price = rs.getDouble("drink_price");
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return price;
+    }
+
+    public static List<Dessert> getDessertDetails() {
+        List<Dessert> desserts = new ArrayList<>();
+        String query = "SELECT dessert_name, dessert_price FROM Desserts";
+
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(query);
+             ResultSet rs = pstmt.executeQuery()) {
+
+            while (rs.next()) {
+                String name = rs.getString("dessert_name");
+                double price = rs.getDouble("dessert_price");
+                desserts.add(new Dessert(name, price));
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return desserts;
+    }
+
+    public static double getDessertPriceByName(String dessertName) {
+        double price = 0.0;
+        String query = "SELECT dessert_price FROM Desserts WHERE dessert_name = ?";
+
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+
+            pstmt.setString(1, dessertName);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                price = rs.getDouble("dessert_price");
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return price;
     }
 
     public static ArrayList<String> getDessertNames() {
@@ -149,6 +234,73 @@ public class DatabaseHelper {
             e.printStackTrace();
         }
         return deliveryDriver;
+    }
+    public static double getPizzaPriceByName(String pizzaName) {
+        double totalIngredientCost = 0.0;
+        String query = "SELECT t.topping_price " +
+                "FROM PIZZARE.pizzas p " +
+                "JOIN PIZZARE.pizzatoppings pt ON p.pizza_id = pt.pizza_id " +
+                "JOIN PIZZARE.toppings t ON pt.topping_id = t.topping_id " +
+                "WHERE p.pizza_name = ?";
+
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+
+            pstmt.setString(1, pizzaName);
+            ResultSet rs = pstmt.executeQuery();
+
+            while (rs.next()) {
+                totalIngredientCost += rs.getDouble("topping_price");
+            }
+
+            // Calculate the final price
+            return PizzaPriceCalculator.calculateFinalPrice(totalIngredientCost);
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return -1; // Return -1 if an error occurs
+    }
+
+    public static void updatePizzaPricesForAll() {
+        String selectPizzaIdsQuery = "SELECT pizza_id FROM PIZZARE.pizzas";
+        String selectIngredientCostQuery = "SELECT SUM(t.topping_price) AS total_ingredient_cost " +
+                "FROM PIZZARE.pizzatoppings pt " +
+                "JOIN PIZZARE.toppings t ON pt.topping_id = t.topping_id " +
+                "WHERE pt.pizza_id = ?";
+        String updatePizzaPriceQuery = "UPDATE PIZZARE.pizzas SET pizza_finalprice = ? WHERE pizza_id = ?";
+
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement selectPizzaStmt = conn.prepareStatement(selectPizzaIdsQuery);
+             PreparedStatement selectCostStmt = conn.prepareStatement(selectIngredientCostQuery);
+             PreparedStatement updateStmt = conn.prepareStatement(updatePizzaPriceQuery);
+             ResultSet pizzaRs = selectPizzaStmt.executeQuery()) {
+
+            // Loop through all pizzas
+            while (pizzaRs.next()) {
+                int pizzaId = pizzaRs.getInt("pizza_id");
+
+                // Fetch the total ingredient cost for the current pizza
+                selectCostStmt.setInt(1, pizzaId);
+                ResultSet costRs = selectCostStmt.executeQuery();
+
+                if (costRs.next()) {
+                    double ingredientCost = costRs.getDouble("total_ingredient_cost");
+
+                    // Calculate the final pizza price using the PizzaPriceCalculator
+                    double finalPrice = PizzaPriceCalculator.calculateFinalPrice(ingredientCost);
+
+                    // Update the pizza's price in the database
+                    updateStmt.setDouble(1, finalPrice);
+                    updateStmt.setInt(2, pizzaId);
+                    updateStmt.executeUpdate();
+                }
+                costRs.close(); // Close the cost result set after processing each pizza
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     // Helper method for querying the Items Selection from the DB

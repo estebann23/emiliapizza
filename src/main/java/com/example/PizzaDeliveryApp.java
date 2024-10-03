@@ -3,29 +3,42 @@ package com.example;
 import javax.swing.*;
 import java.awt.*;
 import java.util.ArrayList;
+import java.util.Stack;
 
 public class PizzaDeliveryApp {
     private JFrame frame;
     private JPanel mainPanel;
     private CardLayout cardLayout;
-    private ArrayList<String> order;
+    private final ArrayList<String> order;
+    private final Stack<String> panelHistory;
+    private PizzaPanel pizzaPanel; // Declare PizzaPanel as an instance variable
 
     public PizzaDeliveryApp() {
+        panelHistory = new Stack<>();
+        order = new ArrayList<>();
         initializeUI();
+        updatePizzaPrices();
+    }
+
+    // Main method to run the application
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(PizzaDeliveryApp::new);
     }
 
     private void initializeUI() {
         frame = new JFrame("Emilia Pizza Delivery");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(500, 600); // Standard size for all panels
+        frame.setSize(500, 600);
 
         cardLayout = new CardLayout();
         mainPanel = new JPanel(cardLayout);
-        order = new ArrayList<>();
 
-        // Adding different panels
+        // Initialize PizzaPanel and store it as an instance variable
+        pizzaPanel = new PizzaPanel(this);
+
+        // Add panels to the main panel
         mainPanel.add(new LoginPanel(this), PanelNames.LOGIN_PANEL);
-        mainPanel.add(new PizzaPanel(this), PanelNames.PIZZAS_PANEL);
+        mainPanel.add(pizzaPanel, PanelNames.PIZZAS_PANEL); // Add pizzaPanel here
         mainPanel.add(new DrinksPanel(this), PanelNames.DRINKS_PANEL);
         mainPanel.add(new DessertsPanel(this), PanelNames.DESSERTS_PANEL);
         mainPanel.add(new DeliveryPanel(this), PanelNames.DELIVERY_PANEL);
@@ -35,29 +48,63 @@ public class PizzaDeliveryApp {
         frame.setVisible(true);
     }
 
-    // Method to navigate between panels
     public void navigateTo(String panelName) {
+        if (!panelHistory.isEmpty()) {
+            panelHistory.push(panelName);
+        }
         cardLayout.show(mainPanel, panelName);
     }
 
-    // Method to navigate to pizza details
+    public void navigateToPreviousPanel() {
+        if (!panelHistory.isEmpty()) {
+            panelHistory.pop();
+            if (!panelHistory.isEmpty()) {
+                cardLayout.show(mainPanel, panelHistory.peek());
+            } else {
+                cardLayout.show(mainPanel, PanelNames.LOGIN_PANEL);
+            }
+        }
+    }
+
+    public void showCart() {
+        CartPanel cartPanel = new CartPanel(this);
+        cartPanel.setVisible(true);
+    }
+
+    // Getter for the order
+    public ArrayList<String> getOrder() {
+        return order;
+    }
+
+    // Getter for the JFrame
+    public JFrame getFrame() {
+        return frame;
+    }
+
+    // Getter for the PizzaPanel
+    public PizzaPanel getPizzaPanel() {
+        return pizzaPanel;
+    }
+
+    private void updatePizzaPrices() {
+        try {
+            DatabaseHelper.updatePizzaPricesForAll();
+            System.out.println("Pizza prices updated successfully.");
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(frame, "Error updating pizza prices: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    // Navigate to the pizza details panel
     public void navigateToPizzaDetails(Pizza pizza) {
         PizzaDetailsPanel detailsPanel = new PizzaDetailsPanel(this, pizza);
         mainPanel.add(detailsPanel, PanelNames.PIZZA_DETAILS_PANEL);
         cardLayout.show(mainPanel, PanelNames.PIZZA_DETAILS_PANEL);
     }
 
-    // Get the current order
-    public ArrayList<String> getOrder() {
-        return order;
-    }
-
-    // Add pizza to the order
-    public void addPizzaToOrder(String pizzaName) {
+    // Method to add pizza to the order
+    public void addPizzaToOrder(String pizzaName, int quantity) {
         order.add(pizzaName);
-    }
-
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(PizzaDeliveryApp::new);
+        pizzaPanel.updateCartButton(); // Update the cart button when a pizza is added
     }
 }
