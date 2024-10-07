@@ -16,6 +16,7 @@ public class CartPanel extends JDialog {
     private final JTable cartTable;
     private final JLabel totalLabel;
     private double totalAmount;
+    private double discountValue = 0.0; // Discount percentage
     private final HashMap<String, Integer> orderMap;
     private DefaultTableModel tableModel;
 
@@ -141,9 +142,18 @@ public class CartPanel extends JDialog {
             tableModel.addRow(new Object[]{item, quantity, "$" + String.format("%.2f", itemPrice * quantity), "Remove"});
         }
 
-        totalLabel.setText("Total Amount: $" + String.format("%.2f", totalAmount));
+        if (discountValue > 0) {
+            double discountedTotal = totalAmount - (totalAmount * discountValue / 100.0);
+            totalLabel.setText("Total Amount (after " + discountValue + "% discount): $" + String.format("%.2f", discountedTotal));
+        } else {
+            totalLabel.setText("Total Amount: $" + String.format("%.2f", totalAmount));
+        }
     }
 
+    public void applyDiscount(double discountValue) {
+        this.discountValue = discountValue;
+        updateCartDisplay();
+    }
     private void decreaseQuantity(String item) {
         if (orderMap.containsKey(item)) {
             int quantity = orderMap.get(item);

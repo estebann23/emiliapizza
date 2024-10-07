@@ -7,9 +7,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class DatabaseHelper {
-    private static final String DB_URL = "jdbc:mysql://localhost:3306/PIZZARE";
+    private static final String DB_URL = "jdbc:mysql://localhost:3306/emiliadb";
     private static final String USER = "root";
-    private static final String PASS = "02072005";
+    private static final String PASS = "mysql2311";
 
     public static boolean createAccount(String name, String gender, String birthdate,
                                         String emailAddress, String phoneNumber,
@@ -82,9 +82,9 @@ public class DatabaseHelper {
         List<Pizza> pizzas = new ArrayList<>();
 
         String query = "SELECT p.pizza_id, p.pizza_name, t.topping_name, t.topping_price, t.topping_isvegan, t.toppping_isvegetarian " +
-                "FROM PIZZARE.pizzas p " +
-                "JOIN PIZZARE.pizzatoppings pt ON p.pizza_id = pt.pizza_id " +
-                "JOIN PIZZARE.toppings t ON pt.topping_id = t.topping_id";
+                "FROM pizzas p " +
+                "JOIN pizzatoppings pt ON p.pizza_id = pt.pizza_id " +
+                "JOIN toppings t ON pt.topping_id = t.topping_id";
 
         try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
              PreparedStatement pstmt = conn.prepareStatement(query);
@@ -238,9 +238,9 @@ public class DatabaseHelper {
     public static double getPizzaPriceByName(String pizzaName) {
         double totalIngredientCost = 0.0;
         String query = "SELECT t.topping_price " +
-                "FROM PIZZARE.pizzas p " +
-                "JOIN PIZZARE.pizzatoppings pt ON p.pizza_id = pt.pizza_id " +
-                "JOIN PIZZARE.toppings t ON pt.topping_id = t.topping_id " +
+                "FROM pizzas p " +
+                "JOIN pizzatoppings pt ON p.pizza_id = pt.pizza_id " +
+                "JOIN toppings t ON pt.topping_id = t.topping_id " +
                 "WHERE p.pizza_name = ?";
 
         try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
@@ -263,12 +263,12 @@ public class DatabaseHelper {
     }
 
     public static void updatePizzaPricesForAll() {
-        String selectPizzaIdsQuery = "SELECT pizza_id FROM PIZZARE.pizzas";
+        String selectPizzaIdsQuery = "SELECT pizza_id FROM pizzas";
         String selectIngredientCostQuery = "SELECT SUM(t.topping_price) AS total_ingredient_cost " +
-                "FROM PIZZARE.pizzatoppings pt " +
-                "JOIN PIZZARE.toppings t ON pt.topping_id = t.topping_id " +
+                "FROM pizzatoppings pt " +
+                "JOIN toppings t ON pt.topping_id = t.topping_id " +
                 "WHERE pt.pizza_id = ?";
-        String updatePizzaPriceQuery = "UPDATE PIZZARE.pizzas SET pizza_finalprice = ? WHERE pizza_id = ?";
+        String updatePizzaPriceQuery = "UPDATE pizzas SET pizza_finalprice = ? WHERE pizza_id = ?";
 
         try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
              PreparedStatement selectPizzaStmt = conn.prepareStatement(selectPizzaIdsQuery);
@@ -302,6 +302,29 @@ public class DatabaseHelper {
             e.printStackTrace();
         }
     }
+
+    public static List<DiscountCode> getDiscountCodes() {
+        List<DiscountCode> discountCodes = new ArrayList<>();
+        String query = "SELECT DiscountCode, Discount_Value, DiscountCode_isAvailable FROM discountcodes";
+
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(query);
+             ResultSet rs = pstmt.executeQuery()) {
+
+            while (rs.next()) {
+                String code = rs.getString("DiscountCode");
+                double value = rs.getDouble("Discount_Value");
+                boolean isUsed = rs.getBoolean("DiscountCode_isAvailable");
+                discountCodes.add(new DiscountCode(code, value, isUsed));
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return discountCodes;
+    }
+
 
     // Helper method for querying the Items Selection from the DB
     private static ArrayList<String> executeSelectQuery(String query, String columnLabel) {

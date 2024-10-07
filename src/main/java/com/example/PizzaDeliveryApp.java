@@ -11,7 +11,7 @@ public class PizzaDeliveryApp {
     private CardLayout cardLayout;
     private final ArrayList<String> order;
     private final Stack<String> panelHistory;
-    private PizzaPanel pizzaPanel; // Declare PizzaPanel as an instance variable
+    private PizzaPanel pizzaPanel;
 
     public PizzaDeliveryApp() {
         panelHistory = new Stack<>();

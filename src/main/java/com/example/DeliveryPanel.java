@@ -12,11 +12,17 @@ import java.awt.event.ActionListener;
 public class DeliveryPanel extends JPanel {
     private final PizzaDeliveryApp app;
     private final JButton cartButton;
+    private CartPanel cartPanel;
+
 
     //postcode to deliverer
     private JTextField postcodeField;
     private JButton submitpostcodeButton;
     private JLabel assignedDriverLabel;
+
+    //discount codes added
+    private JTextField discountField;
+    private JButton submitDiscountbutton;
 
     // delivery time countdown
     private JLabel countdownLabel;
@@ -26,6 +32,7 @@ public class DeliveryPanel extends JPanel {
     public DeliveryPanel(PizzaDeliveryApp app) {
         this.app = app;
         this.cartButton = new JButton("See order");
+        this.cartPanel = cartPanel;
         initialize();
     }
 
@@ -37,14 +44,27 @@ public class DeliveryPanel extends JPanel {
         cartButton.addActionListener(e -> showCartDialog());
         centerPanel.add(cartButton);
 
+        // Adding Textbox for Discount
+        JPanel discountPanel = new JPanel(new FlowLayout());
+        discountPanel.add(new JLabel("Korting! Enter your discount code:"));
+        discountField = new JTextField(10);
+        discountPanel.add(discountField);
+        submitDiscountbutton = new JButton("Submit");
+        discountPanel.add(submitDiscountbutton);
+        centerPanel.add(discountPanel);
+        // listener for postcode input
+        submitDiscountbutton.addActionListener(e -> checkDiscount());
+
         // Adding Textbox for Postcode
         JPanel postcodePanel = new JPanel(new FlowLayout());
         postcodePanel.add(new JLabel("Enter your postal code:"));
         postcodeField = new JTextField(10);
         postcodePanel.add(postcodeField);
-        submitpostcodeButton = new JButton("Submit");
+        submitpostcodeButton = new JButton("Check availability");
         postcodePanel.add(submitpostcodeButton);
         centerPanel.add(postcodePanel);
+        // listener for postcode input
+        submitpostcodeButton.addActionListener(e -> assignDeliveryDriver());
 
         // Showing the Delivery Driver who was assigned, based on the postcode
         assignedDriverLabel = new JLabel("Assigned Delivery Driver: ");
@@ -54,9 +74,6 @@ public class DeliveryPanel extends JPanel {
         // Countdown Label
         countdownLabel = new JLabel("Estimated Delivery Time: ");
         centerPanel.add(countdownLabel);
-
-        // listener for postcode input
-        submitpostcodeButton.addActionListener(e -> assignDeliveryDriver());
 
         //listener to the "Create new order" button
         JButton finishButton = new JButton("Create new order");
@@ -95,6 +112,37 @@ public class DeliveryPanel extends JPanel {
             assignedDriverLabel.setText("No delivery driver found for this postal code. Enter a valid postcode");
         }
     }
+
+    // Method to check if discount is available
+    public boolean isDiscount(String discount) {
+        java.util.List<DiscountCode> discountCodes = DatabaseHelper.getDiscountCodes();
+        for (DiscountCode dc : discountCodes) {
+            if (dc.getCode().equalsIgnoreCase(discount)) {
+                double discountValue = dc.getValue();
+                cartPanel.applyDiscount(discountValue);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Method to print outcome discount check process
+    public void checkDiscount() {
+        String discount = discountField.getText().trim();
+        if (discount.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please enter a discount code.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        if (isDiscount(discount)) {
+            JOptionPane.showMessageDialog(this, "Discount applied. See cart", "Success", JOptionPane.ERROR_MESSAGE);
+
+        }
+        else {
+            JOptionPane.showMessageDialog(this, "Discount code not valid.", "Invalid discount code", JOptionPane.ERROR_MESSAGE);
+
+        }
+    }
+
 
     private void startCountdown(int totalSeconds) {
         if (countdownTimer != null) {
