@@ -15,6 +15,7 @@ public class CartPanel extends JDialog {
     private final PizzaDeliveryApp app;
     private final JTable cartTable;
     private final JLabel totalLabel;
+    private final JLabel discountedtotalLabel;
     private double totalAmount;
     private double discountValue = 0.0; // Discount percentage
     private final HashMap<String, Integer> orderMap;
@@ -24,6 +25,7 @@ public class CartPanel extends JDialog {
         super(app.getFrame(), "Your Cart", true);
         this.app = app;
         this.totalLabel = new JLabel("Total Amount: $0.00");
+        this.discountedtotalLabel = new JLabel();
         this.orderMap = new HashMap<>();
         this.cartTable = new JTable();
         initialize();
@@ -87,9 +89,12 @@ public class CartPanel extends JDialog {
         JPanel bottomPanel = new JPanel(new BorderLayout(10, 10));
         bottomPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
 
-        // Total Label
+        // Totals Label
+        JPanel totalsPanel = new JPanel(new BorderLayout(10, 0));
         totalLabel.setFont(new Font("Arial", Font.BOLD, 18));
-        bottomPanel.add(totalLabel, BorderLayout.EAST);
+        discountedtotalLabel.setFont(new Font("Arial", Font.BOLD, 18));
+        totalsPanel.add(discountedtotalLabel, BorderLayout. SOUTH);
+        totalsPanel.add(totalLabel, BorderLayout.NORTH);
 
         // Buttons Panel
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
@@ -104,6 +109,8 @@ public class CartPanel extends JDialog {
         buttonPanel.add(clearCartButton);
 
         bottomPanel.add(buttonPanel, BorderLayout.WEST);
+        bottomPanel.add(totalsPanel, BorderLayout.EAST);
+
 
         add(bottomPanel, BorderLayout.SOUTH);
 
@@ -143,8 +150,9 @@ public class CartPanel extends JDialog {
         }
 
         if (discountValue > 0) {
-            double discountedTotal = totalAmount - (totalAmount * discountValue / 100.0);
-            totalLabel.setText("Total Amount (after " + discountValue + "% discount): $" + String.format("%.2f", discountedTotal));
+            double discountedTotal = totalAmount - (totalAmount * discountValue);
+            totalLabel.setText("Before korting: " + String.format("%.2f", totalAmount));
+            discountedtotalLabel.setText("Total (after " + (discountValue*100) + "% off): $" + String.format("%.2f", discountedTotal));
         } else {
             totalLabel.setText("Total Amount: $" + String.format("%.2f", totalAmount));
         }

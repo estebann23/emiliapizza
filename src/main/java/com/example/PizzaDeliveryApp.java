@@ -12,6 +12,8 @@ public class PizzaDeliveryApp {
     private final ArrayList<String> order;
     private final Stack<String> panelHistory;
     private PizzaPanel pizzaPanel;
+    private String currentUsername;
+
 
     public PizzaDeliveryApp() {
         panelHistory = new Stack<>();
@@ -106,5 +108,13 @@ public class PizzaDeliveryApp {
     public void addPizzaToOrder(String pizzaName, int quantity) {
         order.add(pizzaName);
         pizzaPanel.updateCartButton(); // Update the cart button when a pizza is added
+    }
+
+    //Current Username storing
+    public void setCurrentUsername(String username) {
+        this.currentUsername = username;
+    }
+    public String getCurrentUsername() {
+        return currentUsername;
     }
 }

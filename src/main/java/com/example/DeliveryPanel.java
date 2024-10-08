@@ -12,7 +12,10 @@ import java.awt.event.ActionListener;
 public class DeliveryPanel extends JPanel {
     private final PizzaDeliveryApp app;
     private final JButton cartButton;
+    private final JButton userButton;
+
     private CartPanel cartPanel;
+    private UserPanel userPanel;
 
 
     //postcode to deliverer
@@ -32,7 +35,7 @@ public class DeliveryPanel extends JPanel {
     public DeliveryPanel(PizzaDeliveryApp app) {
         this.app = app;
         this.cartButton = new JButton("See order");
-        this.cartPanel = cartPanel;
+        this.userButton = new JButton("User info");
         initialize();
     }
 
@@ -41,8 +44,21 @@ public class DeliveryPanel extends JPanel {
         setBorder(new EmptyBorder(20, 20, 20, 20));
 
         Panel centerPanel = new Panel(new GridLayout(8, 1));
+
+        //Top Panel for buttons
+        JPanel topPanel = new JPanel(new BorderLayout());
+        JPanel topTextPanel = new JPanel(new GridBagLayout());
+        JLabel topTextLabel = new JLabel("Order Checkout");
+        topTextLabel.setFont(new Font("Arial", Font.BOLD, 18));
+        topTextPanel.add(topTextLabel);
+
+
         cartButton.addActionListener(e -> showCartDialog());
-        centerPanel.add(cartButton);
+        userButton.addActionListener(e -> showUserDialog());
+        topPanel.add(topTextPanel, BorderLayout.CENTER);
+        topPanel.add(cartButton, BorderLayout.WEST);
+        topPanel.add(userButton, BorderLayout.EAST);
+        centerPanel.add(topPanel);
 
         // Adding Textbox for Discount
         JPanel discountPanel = new JPanel(new FlowLayout());
@@ -96,6 +112,11 @@ public class DeliveryPanel extends JPanel {
         }
     }
 
+    private void showUserDialog() { // Open the UserPanel
+        UserPanel userPanel = new UserPanel(app);
+        userPanel.setVisible(true);
+    }
+
     private void assignDeliveryDriver() {
         String postcode = postcodeField.getText().trim();
         if (postcode.isEmpty()) {
@@ -107,7 +128,7 @@ public class DeliveryPanel extends JPanel {
         String deliveryDriver = DatabaseHelper.getDeliveryDriver(postcode);
         if (deliveryDriver != null) {
             assignedDriverLabel.setText("Assigned Delivery Driver: " + deliveryDriver);
-            startCountdown(15 * 60); 
+            startCountdown(15 * 60);
         } else {
             assignedDriverLabel.setText("No delivery driver found for this postal code. Enter a valid postcode");
         }
@@ -119,6 +140,7 @@ public class DeliveryPanel extends JPanel {
         for (DiscountCode dc : discountCodes) {
             if (dc.getCode().equalsIgnoreCase(discount)) {
                 double discountValue = dc.getValue();
+                cartPanel = new CartPanel(app);
                 cartPanel.applyDiscount(discountValue);
                 return true;
             }
@@ -130,19 +152,19 @@ public class DeliveryPanel extends JPanel {
     public void checkDiscount() {
         String discount = discountField.getText().trim();
         if (discount.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Please enter a discount code.", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Please enter a discount code.", "Error", JOptionPane.WARNING_MESSAGE);
             return;
         }
-        if (isDiscount(discount)) {
-            JOptionPane.showMessageDialog(this, "Discount applied. See cart", "Success", JOptionPane.ERROR_MESSAGE);
 
+        isDiscount(discount);
+        if (isDiscount(discount)) {
+            cartPanel.setVisible(true);
         }
         else {
             JOptionPane.showMessageDialog(this, "Discount code not valid.", "Invalid discount code", JOptionPane.ERROR_MESSAGE);
 
         }
     }
-
 
     private void startCountdown(int totalSeconds) {
         if (countdownTimer != null) {

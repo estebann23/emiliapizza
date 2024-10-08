@@ -12,7 +12,7 @@ public class LoginPanel extends JPanel {
         initialize();
     }
 
-    private void initialize() {
+    public void initialize() {
         setLayout(new BorderLayout());
         setBorder(new EmptyBorder(20, 20, 20, 20));
 
@@ -43,6 +43,8 @@ public class LoginPanel extends JPanel {
         loginButton.addActionListener(e -> {
             boolean authenticated = DatabaseHelper.authenticateUser(usernameField.getText(), new String(passwordField.getPassword()));
             if (authenticated) {
+                String username = usernameField.getText().trim();
+                app.setCurrentUsername(username);
                 app.navigateTo(PanelNames.PIZZAS_PANEL);
             } else {
                 JOptionPane.showMessageDialog(this, "Invalid login", "Error", JOptionPane.ERROR_MESSAGE);

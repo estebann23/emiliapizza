@@ -342,4 +342,29 @@ public class DatabaseHelper {
         }
         return resultList;
     }
+
+    public static int getTotalPizzasOrderedByCustomer(String username) {
+        int totalPizzasOrdered = 0;
+        String query = "SELECT SUM(oi.OrderItem_Amount) AS total_pizzas_ordered " +
+                "FROM customers c " +
+                "JOIN orders o ON c.customer_id = o.customer_id " +
+                "JOIN orderitems oi ON o.order_id = oi.order_id " +
+                "JOIN pizzas p ON oi.pizza_id = p.pizza_id " +
+                "WHERE c.username = ? " +
+                "GROUP BY c.username";
+
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+            pstmt.setString(1, username);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                totalPizzasOrdered = rs.getInt("total_pizzas_ordered");
+            }
+            rs.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return totalPizzasOrdered;
+    }
 }
