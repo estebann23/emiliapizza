@@ -367,4 +367,48 @@ public class DatabaseHelper {
         }
         return totalPizzasOrdered;
     }
+
+    // Helper method for CostumerInfo obtention
+    public static int getCustomerIdByUsername(String username) throws SQLException {
+        int customer_id = 0;
+        String sql = "SELECT customer_id FROM customers WHERE username = ?";
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+            PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, username);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                customer_id = rs.getInt("customer_id");
+            }
+            rs.close();
+        } catch (SQLException e){
+            e.printStackTrace();
+        }
+        return customer_id;
+    }
+
+    public static UserInfo getUserInfo(int customer_id) {
+        UserInfo userInfo = null;
+        String query = "SELECT Name, Gender, Email_Address, Phone_Number FROM customers WHERE customer_id = ?";
+
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+
+            pstmt.setInt(1, customer_id);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                String name = rs.getString("Name");
+                String gender = rs.getString("Gender");
+                String emailAddress = rs.getString("Email_Address");
+                String phoneNumber = rs.getString("Phone_Number");
+
+                userInfo = new UserInfo(name, gender, emailAddress, phoneNumber);
+            }
+            rs.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return userInfo;
+    }
+
 }

@@ -54,7 +54,13 @@ public class DeliveryPanel extends JPanel {
 
 
         cartButton.addActionListener(e -> showCartDialog());
-        userButton.addActionListener(e -> showUserDialog());
+        userButton.addActionListener(e -> {
+            try {
+                showUserDialog();
+            } catch (SQLException ex) {
+                throw new RuntimeException(ex);
+            }
+        });
         topPanel.add(topTextPanel, BorderLayout.CENTER);
         topPanel.add(cartButton, BorderLayout.WEST);
         topPanel.add(userButton, BorderLayout.EAST);
@@ -112,7 +118,7 @@ public class DeliveryPanel extends JPanel {
         }
     }
 
-    private void showUserDialog() { // Open the UserPanel
+    private void showUserDialog() throws SQLException { // Open the UserPanel
         UserPanel userPanel = new UserPanel(app);
         userPanel.setVisible(true);
     }
