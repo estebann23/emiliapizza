@@ -1,0 +1,4 @@
+SELECT 
+    *
+FROM
+    pizzare.orderitems;

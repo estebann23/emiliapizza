@@ -1,8 +1,13 @@
 package com.example;
 
+import com.example.DatabaseHelper;
+import com.example.PanelNames;
+import com.example.PizzaDeliveryApp;
+
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+
 
 public class LoginPanel extends JPanel {
     private final PizzaDeliveryApp app;
@@ -43,14 +48,14 @@ public class LoginPanel extends JPanel {
         loginButton.addActionListener(e -> {
             boolean authenticated = DatabaseHelper.authenticateUser(usernameField.getText(), new String(passwordField.getPassword()));
             if (authenticated) {
-                String username = usernameField.getText().trim();
-                app.setCurrentUsername(username);
+                app.setCurrentUsername(usernameField.getText());
+                int customerId = app.getCustomerIdByUsername(usernameField.getText());
+                DatabaseHelper.createNewOrder(customerId);
                 app.navigateTo(PanelNames.PIZZAS_PANEL);
             } else {
                 JOptionPane.showMessageDialog(this, "Invalid login", "Error", JOptionPane.ERROR_MESSAGE);
             }
         });
-
         createAccountButton.addActionListener(e -> app.navigateTo(PanelNames.CREATE_ACCOUNT_PANEL));
     }
 
