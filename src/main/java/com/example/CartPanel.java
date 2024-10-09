@@ -7,17 +7,17 @@ import javax.swing.table.TableCellEditor;
 import javax.swing.table.TableCellRenderer;
 import java.awt.*;
 import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 
 public class CartPanel extends JDialog {
     private final PizzaDeliveryApp app;
     private final JTable cartTable;
     private final JLabel totalLabel;
-    private final JLabel discountedtotalLabel;
+    private final JLabel discountedTotalLabel;
     private double totalAmount;
-    private double discountValue = 0.0; // Discount percentage
+    double discountValue = 0.0;
     private final HashMap<CartItem, Integer> orderMap;
     private DefaultTableModel tableModel;
 
@@ -25,7 +25,7 @@ public class CartPanel extends JDialog {
         super(app.getFrame(), "Your Cart", true);
         this.app = app;
         this.totalLabel = new JLabel("Total Amount: $0.00");
-        this.discountedtotalLabel = new JLabel();
+        this.discountedTotalLabel = new JLabel();
         this.orderMap = new HashMap<>();
         this.cartTable = new JTable();
         initialize();
@@ -64,7 +64,6 @@ public class CartPanel extends JDialog {
         cartTable.setModel(tableModel);
         cartTable.setFont(new Font("Arial", Font.PLAIN, 14));
         cartTable.setRowHeight(30);
-
         cartTable.getColumn("Actions").setCellRenderer(new ButtonRenderer());
         cartTable.getColumn("Actions").setCellEditor(new ButtonEditor(new JCheckBox()));
 
@@ -77,8 +76,8 @@ public class CartPanel extends JDialog {
 
         JPanel totalsPanel = new JPanel(new BorderLayout(10, 0));
         totalLabel.setFont(new Font("Arial", Font.BOLD, 18));
-        discountedtotalLabel.setFont(new Font("Arial", Font.BOLD, 18));
-        totalsPanel.add(discountedtotalLabel, BorderLayout.SOUTH);
+        discountedTotalLabel.setFont(new Font("Arial", Font.BOLD, 18));
+        totalsPanel.add(discountedTotalLabel, BorderLayout.SOUTH);
         totalsPanel.add(totalLabel, BorderLayout.NORTH);
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
@@ -103,75 +102,48 @@ public class CartPanel extends JDialog {
     }
 
     public void updateCartDisplay() {
-        tableModel.setRowCount(0); // Clear existing rows
+        tableModel.setRowCount(0);
         totalAmount = 0.0;
         orderMap.clear();
 
-        ArrayList<CartItem> order = app.getOrder();  // Adjust this to CartItem
+        List<CartItem> order = app.getOrder();
         for (CartItem item : order) {
             orderMap.put(item, orderMap.getOrDefault(item, 0) + item.getQuantity());
         }
 
         for (CartItem item : orderMap.keySet()) {
             int quantity = orderMap.get(item);
-            double itemPrice = 0.0;
-
-            switch (item.getItemType()) {
-                case PIZZA:
-                    itemPrice = DatabaseHelper.getPizzaPriceByName(item.getName());
-                    break;
-                case DRINK:
-                    itemPrice = DatabaseHelper.getDrinkPriceByName(item.getName());
-                    break;
-                case DESSERT:
-                    itemPrice = DatabaseHelper.getDessertPriceByName(item.getName());
-                    break;
-            }
-
+            double itemPrice = DatabaseHelper.getItemPriceByNameAndType(item.getName(), item.getItemType()).orElse(0.0);
             totalAmount += itemPrice * quantity;
             tableModel.addRow(new Object[]{item, quantity, "$" + String.format("%.2f", itemPrice * quantity), "Remove"});
         }
 
+        // Retrieve the discount value from the PizzaDeliveryApp instance
+        discountValue = app.getCurrentDiscountValue();
         if (discountValue > 0) {
             double discountedTotal = totalAmount - (totalAmount * discountValue);
-            totalLabel.setText("Before korting: " + String.format("%.2f", totalAmount));
-            discountedtotalLabel.setText("Total (after " + (discountValue * 100) + "% off): $" + String.format("%.2f", discountedTotal));
+            totalLabel.setText("Before Discount: $" + String.format("%.2f", totalAmount));
+            discountedTotalLabel.setText("Total (after " + (discountValue * 100) + "% off): $" + String.format("%.2f", discountedTotal));
         } else {
             totalLabel.setText("Total Amount: $" + String.format("%.2f", totalAmount));
+            discountedTotalLabel.setText(""); // Clear the discounted total label if no discount is applied
         }
     }
-
     public void applyDiscount(double discountValue) {
-        this.discountValue = discountValue;
-        updateCartDisplay();
+        app.setCurrentDiscountValue(discountValue); // Set the discount value in the app instance
+        updateCartDisplay(); // Update the cart display to reflect the new discount
     }
 
-    private void decreaseQuantity(CartItem item) {
-        if (orderMap.containsKey(item)) {
-            int quantity = orderMap.get(item);
-            if (quantity > 1) {
-                item.setQuantity(quantity - 1);
-                app.getOrder().remove(item); // Update the order list
-            } else {
-                removeItem(item); // If quantity is 1, remove the item
-            }
-            updateCartDisplay();
-        }
-    }
 
     private void removeItem(CartItem item) {
-        orderMap.remove(item); // Remove item from the map
-        app.getOrder().removeIf(orderItem -> orderItem.equals(item)); // Remove all instances of the item
+        orderMap.remove(item);
+        app.getOrder().removeIf(orderItem -> orderItem.equals(item));
         updateCartDisplay();
     }
 
     private void clearCart() {
         app.getOrder().clear();
         updateCartDisplay();
-    }
-
-    public double getCartTotal() {
-        return totalAmount;
     }
 
     class ButtonRenderer extends JButton implements TableCellRenderer {
@@ -198,8 +170,6 @@ public class CartPanel extends JDialog {
             button.addActionListener(e -> fireEditingStopped());
         }
 
-
-
         @Override
         public Component getTableCellEditorComponent(JTable table, Object value, boolean isSelected, int row, int column) {
             label = (value == null) ? "Remove" : value.toString();
@@ -213,7 +183,7 @@ public class CartPanel extends JDialog {
             if (isPushed) {
                 int selectedRow = cartTable.getSelectedRow();
                 CartItem item = (CartItem) tableModel.getValueAt(selectedRow, 0);
-                decreaseQuantity(item);  // Call the decreaseQuantity method
+                removeItem(item);
             }
             isPushed = false;
             return label;
@@ -223,11 +193,6 @@ public class CartPanel extends JDialog {
         public boolean stopCellEditing() {
             isPushed = false;
             return super.stopCellEditing();
-        }
-
-        @Override
-        protected void fireEditingStopped() {
-            super.fireEditingStopped();
         }
     }
 }

@@ -6,9 +6,12 @@ import java.awt.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.swing.Timer;
 
+import static com.example.DatabaseHelper.getCurrentOrderId;
+
 public class OrderStatusPanel extends JPanel {
     private final PizzaDeliveryApp app;
     private JLabel countdownLabel;
+    private JLabel cancelCountdownLabel; // Label to show the remaining time for cancellation
     private int orderId;
     private JLabel assignedDriverLabel;
     private JButton cancelOrderButton;
@@ -28,13 +31,16 @@ public class OrderStatusPanel extends JPanel {
         setLayout(new BorderLayout());
         setBorder(new EmptyBorder(20, 20, 20, 20));
 
-        JPanel centerPanel = new JPanel(new GridLayout(4, 1));
+        JPanel centerPanel = new JPanel(new GridLayout(5, 1)); // Adjusted to 5 rows to accommodate the new label
 
         JPanel statusProgressPanel = new StatusProgressPanel();
         centerPanel.add(statusProgressPanel);
 
         countdownLabel = new JLabel("Estimated Delivery Time: ");
         centerPanel.add(countdownLabel);
+
+        cancelCountdownLabel = new JLabel("You have 5:00 minutes to cancel the order."); // Initial message
+        centerPanel.add(cancelCountdownLabel); // Add the countdown label for the cancel button
 
         centerPanel.add(assignedDriverLabel);
 
@@ -70,11 +76,16 @@ public class OrderStatusPanel extends JPanel {
     }
 
     private void startCancelTimer() {
-        AtomicInteger cancelTimeLimit = new AtomicInteger(5 * 60);
+        AtomicInteger cancelTimeLimit = new AtomicInteger(5 * 60); // 5 minutes in seconds
+        cancelCountdownLabel.setText("You have " + timeFormat(cancelTimeLimit.get()) + " minutes to cancel the order.");
+
         Timer cancelTimer = new Timer(1000, e -> {
-            cancelTimeLimit.getAndDecrement();
-            if (cancelTimeLimit.get() <= 0) {
+            int remainingTime = cancelTimeLimit.decrementAndGet();
+            cancelCountdownLabel.setText("You have " + timeFormat(remainingTime) + " minutes to cancel the order.");
+
+            if (remainingTime <= 0) {
                 cancelOrderButton.setEnabled(false);
+                cancelCountdownLabel.setText("Cancellation time expired.");
                 ((Timer) e.getSource()).stop();
             }
         });
@@ -82,11 +93,16 @@ public class OrderStatusPanel extends JPanel {
     }
 
     private void cancelOrder() {
+        // Show a confirmation message
         JOptionPane.showMessageDialog(this, "Your order has been canceled.", "Order Canceled", JOptionPane.INFORMATION_MESSAGE);
 
-        boolean isUpdated = DatabaseHelper.updateOrderStatusToCanceled(orderId);
+        // Update the order status in the database
+        boolean isUpdated = DatabaseHelper.updateOrderStatusToCanceled(getCurrentOrderId());
         if (isUpdated) {
             JOptionPane.showMessageDialog(this, "Order status updated to 'Canceled'.", "Update Successful", JOptionPane.INFORMATION_MESSAGE);
+            // Reset all panels and clear the cart
+            app.resetAllPanels();
+            app.navigateTo(PanelNames.PIZZAS_PANEL);
         } else {
             JOptionPane.showMessageDialog(this, "Failed to update order status.", "Update Failed", JOptionPane.ERROR_MESSAGE);
         }

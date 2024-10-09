@@ -5,6 +5,7 @@ import org.mindrot.jbcrypt.BCrypt;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public class DatabaseHelper {
@@ -12,6 +13,8 @@ public class DatabaseHelper {
     private static final String DB_URL = "jdbc:mysql://localhost:3306/PIZZARE";
     private static final String USER = "root";
     private static final String PASS = "02072005";
+    private static int currentOrderId = -1;
+    private static Connection conn;
 
     // Constructor to initialize the DatabaseHelper with the app instance
     public DatabaseHelper(PizzaDeliveryApp app) {
@@ -25,6 +28,27 @@ public class DatabaseHelper {
     public static String generateCustomerID() {
         return UUID.randomUUID().toString();
     }
+
+    public static Optional<Double> getItemPriceByNameAndType(String name, CartItem.ItemType itemType) {
+        String query = switch (itemType) {
+            case PIZZA -> "SELECT pizza_finalprice AS price FROM pizzas WHERE pizza_name = ?";
+            case DRINK -> "SELECT drink_price AS price FROM drinks WHERE drink_name = ?";
+            case DESSERT -> "SELECT dessert_price AS price FROM desserts WHERE dessert_name = ?";
+        };
+
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+            pstmt.setString(1, name);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                return Optional.of(rs.getDouble("price"));
+            }
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+        }
+        return Optional.empty();
+    }
+
 
     // Generates a unique order ID
     public static int generateUniqueOrderId() throws SQLException {
@@ -58,30 +82,52 @@ public class DatabaseHelper {
             return false; // Return false if the update failed
         }
     }
-
-    // Method to create a new order and return the generated Order_ID
-    public static int createNewOrder(int customerId, double totalAmount, String deliveryDriver) {
-        int orderId = -1;
-        String insertOrderSQL = "INSERT INTO orders (Order_ID, Customer_ID, Total_Amount, Order_Date, DeliveryDriver_ID, Order_Status, Order_StartTime) " +
-                "VALUES (?, ?, ?, NOW(), (SELECT DeliveryDriver_ID FROM deliverydrivers WHERE DeliveryDriver_Name = ?), 'Order Received', NOW())";
+    // Updates an existing order with the specified details including Order_Date, Order_Status, and Order_StartTime
+    public static boolean updateOrderDetails(int orderId, double totalAmount, String deliveryDriver) {
+        String updateOrderSQL = "UPDATE orders SET Total_Amount = ?, DeliveryDriver_ID = (SELECT DeliveryDriver_ID FROM deliverydrivers WHERE DeliveryDriver_Name = ?), " +
+                "Order_Date = NOW(), Order_Status = 'Order Confirmed', Order_StartTime = NOW() WHERE Order_ID = ?";
 
         try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(insertOrderSQL)) {
+             PreparedStatement pstmt = conn.prepareStatement(updateOrderSQL)) {
 
-            orderId = generateUniqueOrderId(); // Generate unique order ID
-            pstmt.setInt(1, orderId);
-            pstmt.setInt(2, customerId);
-            pstmt.setDouble(3, totalAmount);
-            pstmt.setString(4, deliveryDriver);
+            pstmt.setDouble(1, totalAmount);
+            pstmt.setString(2, deliveryDriver);
+            pstmt.setInt(3, orderId);
 
-            pstmt.executeUpdate();
+            int rowsAffected = pstmt.executeUpdate();
+            return rowsAffected > 0; // Return true if the update was successful
         } catch (SQLException e) {
             e.printStackTrace();
+            return false; // Return false if the update failed
         }
-        return orderId;
     }
 
 
+
+    // Creates a new order, generates a unique order ID, stores it in the database, and sets it as the current order ID
+    public static void createNewOrder(int customerId) {
+        try {
+            int orderId = generateUniqueOrderId();
+            currentOrderId = orderId;
+
+            String insertOrderSQL = "INSERT INTO orders (Order_ID, Customer_ID) " +
+                    "VALUES (?, ?)";
+
+            try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+                 PreparedStatement pstmt = conn.prepareStatement(insertOrderSQL)) {
+
+                pstmt.setInt(1, orderId);
+                pstmt.setInt(2, customerId);
+                pstmt.executeUpdate();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+    // Returns the current order ID
+    public static int getCurrentOrderId() {
+        return currentOrderId;
+    }
 
     // Creates a new account for a customer
     public static boolean createAccount(String name, String gender, String birthdate, String emailAddress, String phoneNumber, String username, String password) {
@@ -130,6 +176,7 @@ public class DatabaseHelper {
             return false;
         }
     }
+
 
     // Authenticates a user during login
     public static boolean authenticateUser(String username, String password) {
@@ -489,6 +536,37 @@ public class DatabaseHelper {
         }
         return resultList;
     }
+    public static int generateUniqueOrderItemID() {
+        int uniqueID;
+        boolean isUnique = false;
+        String query = "SELECT COUNT(*) FROM orderitems WHERE OrderItem_ID = ?";
+
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+
+            // Loop until a unique ID is found
+            do {
+                // Generate a random number as the unique ID
+                uniqueID = (int) (Math.random() * 1000); // Adjust the range as needed
+
+                // Check if the generated ID already exists in the database
+                pstmt.setInt(1, uniqueID);
+                ResultSet rs = pstmt.executeQuery();
+                if (rs.next()) {
+                    int count = rs.getInt(1);
+                    // If count is 0, then the ID is unique
+                    isUnique = (count == 0);
+                }
+                rs.close();
+            } while (!isUnique); // Repeat until a unique ID is found
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            throw new RuntimeException("Error generating unique OrderItem_ID");
+        }
+
+        return uniqueID;
+    }
 
     public static int getTotalPizzasOrderedByCustomer(String username) {
         int totalPizzasOrdered = 0;
@@ -518,8 +596,9 @@ public class DatabaseHelper {
 
     // Inserts order items into the orderitems table
     public static void insertOrderItem(int orderId, CartItem item) {
-        String insertItemSQL = "INSERT INTO orderitems (Order_ID, Customer_ID, Pizza_ID, Dessert_ID, Drink_ID, OrderItem_Amount) " +
-                "VALUES (?, ?, ?, ?, ?, ?)";
+        int newOrderItemID = generateUniqueOrderItemID();
+        String insertItemSQL = "INSERT INTO orderitems (OrderItem_ID, Order_ID, Customer_ID, Pizza_ID, Dessert_ID, Drink_ID, OrderItem_Amount) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?)";
 
         try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
              PreparedStatement pstmt = conn.prepareStatement(insertItemSQL)) {
@@ -527,42 +606,44 @@ public class DatabaseHelper {
             conn.setAutoCommit(false); // Start transaction
             int customerId = getCustomerIdByUsername(app.getCurrentUsername());
 
-            pstmt.setInt(1, orderId);
-            pstmt.setInt(2, customerId);
+            pstmt.setInt(1, newOrderItemID);
+            pstmt.setInt(2, orderId);
+            pstmt.setInt(3, customerId);
 
             // Handle different item types
             switch (item.getItemType()) {
                 case PIZZA:
                     int pizzaId = getPizzaIdByName(item.getName());
-                    pstmt.setInt(3, pizzaId);
-                    pstmt.setNull(4, Types.INTEGER);
-                    pstmt.setNull(5, Types.INTEGER);
+                    pstmt.setInt(4, pizzaId);
+                    pstmt.setNull(5, Types.INTEGER); // Dessert_ID
+                    pstmt.setNull(6, Types.INTEGER); // Drink_ID
                     break;
                 case DESSERT:
                     int dessertId = getDessertIdByName(item.getName());
-                    pstmt.setNull(3, Types.INTEGER);
-                    pstmt.setInt(4, dessertId);
-                    pstmt.setNull(5, Types.INTEGER);
+                    pstmt.setNull(4, Types.INTEGER); // Pizza_ID
+                    pstmt.setInt(5, dessertId);
+                    pstmt.setNull(6, Types.INTEGER); // Drink_ID
                     break;
                 case DRINK:
                     int drinkId = getDrinkIdByName(item.getName());
-                    pstmt.setNull(3, Types.INTEGER);
-                    pstmt.setNull(4, Types.INTEGER);
-                    pstmt.setInt(5, drinkId);
+                    pstmt.setNull(4, Types.INTEGER); // Pizza_ID
+                    pstmt.setNull(5, Types.INTEGER); // Dessert_ID
+                    pstmt.setInt(6, drinkId);
                     break;
                 default:
                     throw new IllegalArgumentException("Unknown item type: " + item.getItemType());
             }
 
-            pstmt.setInt(6, item.getQuantity());
+            pstmt.setInt(7, item.getQuantity()); // OrderItem_Amount
             pstmt.executeUpdate();
             conn.commit(); // Commit transaction
 
         } catch (SQLException e) {
             e.printStackTrace();
             // Rollback on failure
-            try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS)) {
-                conn.rollback();
+            try {
+                    conn.rollback();
+            
             } catch (SQLException rollbackEx) {
                 rollbackEx.printStackTrace();
             }

@@ -91,11 +91,10 @@ public class DeliveryPanel extends JPanel {
             return;
         }
 
-        // Simulate the delivery driver assignment
         String deliveryDriver = DatabaseHelper.getDeliveryDriver(postcode);
         if (deliveryDriver != null) {
-            // Create a new order in the database and get the generated Order_ID
             int customerId = app.getCustomerIdByUsername(app.getCurrentUsername());
+
             double totalAmount = app.getOrder().stream().mapToDouble(item -> {
                 switch (item.getItemType()) {
                     case PIZZA: return DatabaseHelper.getPizzaPriceByName(item.getName()) * item.getQuantity();
@@ -105,20 +104,26 @@ public class DeliveryPanel extends JPanel {
                 }
             }).sum();
 
-            int orderId = DatabaseHelper.createNewOrder(customerId, totalAmount, deliveryDriver);
-
-            // Insert order items (pizzas, drinks, desserts) into the orderitems table
-            for (CartItem item : app.getOrder()) {
-                DatabaseHelper.insertOrderItem(orderId, item);
+            double discountValue = app.getCurrentDiscountValue(); // Get the current discount value
+            if (discountValue > 0) {
+                totalAmount -= totalAmount * discountValue; // Apply the discount
             }
 
-            // Navigate to OrderStatusPanel and pass the assigned driver
-            app.navigateToOrderStatusPanel(deliveryDriver);
+            int orderId = DatabaseHelper.getCurrentOrderId();
+            boolean updated = DatabaseHelper.updateOrderDetails(orderId, totalAmount, deliveryDriver);
+
+            if (updated) {
+                for (CartItem item : app.getOrder()) {
+                    DatabaseHelper.insertOrderItem(orderId, item);
+                }
+                app.navigateToOrderStatusPanel(deliveryDriver);
+            } else {
+                JOptionPane.showMessageDialog(this, "Failed to update order details.", "Error", JOptionPane.ERROR_MESSAGE);
+            }
         } else {
             JOptionPane.showMessageDialog(this, "No delivery driver found for this postal code. Enter a valid postcode.", "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
-
     private void showCartDialog() {
         if (app.getOrder().isEmpty()) {
             JOptionPane.showMessageDialog(this, "Your cart is empty!", "Cart", JOptionPane.INFORMATION_MESSAGE);
@@ -141,7 +146,7 @@ public class DeliveryPanel extends JPanel {
         }
 
         if (isDiscount(discount)) {
-            cartPanel.setVisible(true);
+            cartPanel.setVisible(true); // Show the cart panel to reflect the updated total
         } else {
             JOptionPane.showMessageDialog(this, "Discount code not valid.", "Invalid discount code", JOptionPane.ERROR_MESSAGE);
         }
@@ -152,6 +157,7 @@ public class DeliveryPanel extends JPanel {
         for (DiscountCode dc : discountCodes) {
             if (dc.getCode().equalsIgnoreCase(discount)) {
                 double discountValue = dc.getValue();
+                app.setCurrentDiscountValue(discountValue); // Store the discount in the app
                 cartPanel = new CartPanel(app);
                 cartPanel.applyDiscount(discountValue);
                 return true;

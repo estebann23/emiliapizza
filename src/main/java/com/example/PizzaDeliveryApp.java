@@ -15,6 +15,9 @@ public class PizzaDeliveryApp {
     private final Stack<String> panelHistory;
     private PizzaPanel pizzaPanel;
     private String currentUsername;
+    private double currentDiscountValue = 0.0;
+
+
 
     public PizzaDeliveryApp() {
         panelHistory = new Stack<>();
@@ -118,5 +121,43 @@ public class PizzaDeliveryApp {
 
     public String getCurrentUsername() {
         return currentUsername;
+    }
+    public double getCurrentDiscountValue() {
+        return currentDiscountValue;
+    }
+
+    public void setCurrentDiscountValue(double discountValue) {
+        this.currentDiscountValue = discountValue;
+    }
+    public void clearCart() {
+        getOrder().clear();
+        setCurrentDiscountValue(0.0); // Reset the discount
+        if (pizzaPanel != null) {
+            pizzaPanel.updateCartButton(); // Update the cart button to reflect the cleared cart
+        }
+    }
+
+    public void resetAllPanels() {
+        // Clear the cart and reset the discount
+        clearCart();
+
+        // Reset the state of individual panels if needed
+        pizzaPanel = new PizzaPanel(this);
+        DrinksPanel drinksPanel = new DrinksPanel(this);
+        DessertsPanel dessertsPanel = new DessertsPanel(this);
+        DeliveryPanel deliveryPanel = new DeliveryPanel(this);
+
+        // Re-add the panels to the main panel to reset their state
+        mainPanel.removeAll();
+        mainPanel.add(pizzaPanel, PanelNames.PIZZAS_PANEL);
+        mainPanel.add(drinksPanel, PanelNames.DRINKS_PANEL);
+        mainPanel.add(dessertsPanel, PanelNames.DESSERTS_PANEL);
+        mainPanel.add(deliveryPanel, PanelNames.DELIVERY_PANEL);
+
+        // Navigate to the initial panel (e.g., Login)
+        navigateTo(PanelNames.LOGIN_PANEL);
+
+        // Clear panel history
+        panelHistory.clear();
     }
 }
