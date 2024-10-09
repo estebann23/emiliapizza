@@ -5,24 +5,25 @@ import java.awt.*;
 import java.util.ArrayList;
 import java.util.Stack;
 
+import static com.example.DatabaseHelper.getPizzaIdByName;
+
 public class PizzaDeliveryApp {
     private JFrame frame;
     private JPanel mainPanel;
     private CardLayout cardLayout;
-    private final ArrayList<String> order;
+    private final ArrayList<CartItem> order;
     private final Stack<String> panelHistory;
     private PizzaPanel pizzaPanel;
     private String currentUsername;
-
 
     public PizzaDeliveryApp() {
         panelHistory = new Stack<>();
         order = new ArrayList<>();
         initializeUI();
+        DatabaseHelper.setAppInstance(this);
         updatePizzaPrices();
     }
 
-    // Main method to run the application
     public static void main(String[] args) {
         SwingUtilities.invokeLater(PizzaDeliveryApp::new);
     }
@@ -31,25 +32,18 @@ public class PizzaDeliveryApp {
         frame = new JFrame("Emilia Pizza Delivery");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setSize(500, 600);
-
         cardLayout = new CardLayout();
         mainPanel = new JPanel(cardLayout);
-
-        // Initialize PizzaPanel and store it as an instance variable
         pizzaPanel = new PizzaPanel(this);
-
-        // Add panels to the main panel
         mainPanel.add(new LoginPanel(this), PanelNames.LOGIN_PANEL);
-        mainPanel.add(pizzaPanel, PanelNames.PIZZAS_PANEL); // Add pizzaPanel here
+        mainPanel.add(pizzaPanel, PanelNames.PIZZAS_PANEL);
         mainPanel.add(new DrinksPanel(this), PanelNames.DRINKS_PANEL);
         mainPanel.add(new DessertsPanel(this), PanelNames.DESSERTS_PANEL);
         mainPanel.add(new DeliveryPanel(this), PanelNames.DELIVERY_PANEL);
-        mainPanel.add(new AccountCreationPanel(this), PanelNames.CREATE_ACCOUNT_PANEL);
-
+        mainPanel.add(new OrderStatusPanel(this, "Default Driver"), "OrderStatusPanel");
         frame.add(mainPanel);
         frame.setVisible(true);
     }
-
     public void navigateTo(String panelName) {
         if (!panelHistory.isEmpty()) {
             panelHistory.push(panelName);
@@ -68,22 +62,25 @@ public class PizzaDeliveryApp {
         }
     }
 
+    public void navigateToOrderStatusPanel(String deliveryDriver) {
+        OrderStatusPanel orderStatusPanel = new OrderStatusPanel(this, deliveryDriver);
+        mainPanel.add(orderStatusPanel, "OrderStatusPanel");
+        cardLayout.show(mainPanel, "OrderStatusPanel");
+    }
+
     public void showCart() {
         CartPanel cartPanel = new CartPanel(this);
         cartPanel.setVisible(true);
     }
 
-    // Getter for the order
-    public ArrayList<String> getOrder() {
+    public ArrayList<CartItem> getOrder() {
         return order;
     }
 
-    // Getter for the JFrame
     public JFrame getFrame() {
         return frame;
     }
 
-    // Getter for the PizzaPanel
     public PizzaPanel getPizzaPanel() {
         return pizzaPanel;
     }
@@ -97,23 +94,28 @@ public class PizzaDeliveryApp {
         }
     }
 
-    // Navigate to the pizza details panel
+
     public void navigateToPizzaDetails(Pizza pizza) {
         PizzaDetailsPanel detailsPanel = new PizzaDetailsPanel(this, pizza);
         mainPanel.add(detailsPanel, PanelNames.PIZZA_DETAILS_PANEL);
         cardLayout.show(mainPanel, PanelNames.PIZZA_DETAILS_PANEL);
     }
 
-    // Method to add pizza to the order
     public void addPizzaToOrder(String pizzaName, int quantity) {
-        order.add(pizzaName);
-        pizzaPanel.updateCartButton(); // Update the cart button when a pizza is added
+        CartItem newItem = new CartItem(pizzaName, DatabaseHelper.getPizzaIdByName(pizzaName), CartItem.ItemType.PIZZA);
+        newItem.setQuantity(quantity);
+        order.add(newItem);
+        pizzaPanel.updateCartButton();
     }
 
-    //Current Username storing
+    public int getCustomerIdByUsername(String username) {
+        return DatabaseHelper.getCustomerIdByUsername(username);
+    }
+
     public void setCurrentUsername(String username) {
         this.currentUsername = username;
     }
+
     public String getCurrentUsername() {
         return currentUsername;
     }

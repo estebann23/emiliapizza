@@ -5,52 +5,133 @@ import org.mindrot.jbcrypt.BCrypt;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class DatabaseHelper {
-    private static final String DB_URL = "jdbc:mysql://localhost:3306/emiliadb";
+    private static PizzaDeliveryApp app;
+    private static final String DB_URL = "jdbc:mysql://localhost:3306/PIZZARE";
     private static final String USER = "root";
-    private static final String PASS = "mysql2311";
+    private static final String PASS = "02072005";
 
-    public static boolean createAccount(String name, String gender, String birthdate,
-                                        String emailAddress, String phoneNumber,
-                                        String username, String password) {
+    // Constructor to initialize the DatabaseHelper with the app instance
+    public DatabaseHelper(PizzaDeliveryApp app) {
+        DatabaseHelper.app = app;
+    }
+    public static void setAppInstance(PizzaDeliveryApp appInstance) {
+        app = appInstance;
+    }
 
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS)) {
-            String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
+    // Generates a unique customer ID
+    public static String generateCustomerID() {
+        return UUID.randomUUID().toString();
+    }
 
-            // Generate next Customer_ID
-            String query = "SELECT MAX(Customer_ID) FROM Customers";
-            Statement stmt = conn.createStatement();
-            ResultSet rs = stmt.executeQuery(query);
-            int customerId = 1;
-            if (rs.next()) {
-                customerId = rs.getInt(1) + 1;
+    // Generates a unique order ID
+    public static int generateUniqueOrderId() throws SQLException {
+        int uniqueId = Math.abs(UUID.randomUUID().hashCode());
+
+        // Check if this ID already exists in the database
+        String query = "SELECT COUNT(*) FROM orders WHERE Order_ID = ?";
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement stmt = conn.prepareStatement(query)) {
+
+            stmt.setInt(1, uniqueId);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next() && rs.getInt(1) > 0) {
+                return generateUniqueOrderId(); // Recursively generate a new ID if it exists
             }
+        }
+        return uniqueId;
+    }
+    public static boolean updateOrderStatusToCanceled(int orderId) {
+        String updateOrderSQL = "UPDATE orders SET Order_Status = 'Canceled', Order_EndTime = NOW() WHERE Order_ID = ?";
 
-            String insertSQL = "INSERT INTO Customers (Customer_ID, Name, Gender, Birthdate, Email_Address, Phone_Number, Username, Password) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(updateOrderSQL)) {
 
-            PreparedStatement pstmt = conn.prepareStatement(insertSQL);
+            pstmt.setInt(1, orderId);
+            int rowsAffected = pstmt.executeUpdate();
+            return rowsAffected > 0; // Return true if the update was successful
 
-            pstmt.setInt(1, customerId);
-            pstmt.setString(2, name);
-            pstmt.setString(3, gender);
-            pstmt.setString(4, birthdate);
-            pstmt.setString(5, emailAddress);
-            pstmt.setString(6, phoneNumber);
-            pstmt.setString(7, username);
-            pstmt.setString(8, hashedPassword);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false; // Return false if the update failed
+        }
+    }
+
+    // Method to create a new order and return the generated Order_ID
+    public static int createNewOrder(int customerId, double totalAmount, String deliveryDriver) {
+        int orderId = -1;
+        String insertOrderSQL = "INSERT INTO orders (Order_ID, Customer_ID, Total_Amount, Order_Date, DeliveryDriver_ID, Order_Status, Order_StartTime) " +
+                "VALUES (?, ?, ?, NOW(), (SELECT DeliveryDriver_ID FROM deliverydrivers WHERE DeliveryDriver_Name = ?), 'Order Received', NOW())";
+
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(insertOrderSQL)) {
+
+            orderId = generateUniqueOrderId(); // Generate unique order ID
+            pstmt.setInt(1, orderId);
+            pstmt.setInt(2, customerId);
+            pstmt.setDouble(3, totalAmount);
+            pstmt.setString(4, deliveryDriver);
 
             pstmt.executeUpdate();
-            return true;
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return orderId;
+    }
 
+
+
+    // Creates a new account for a customer
+    public static boolean createAccount(String name, String gender, String birthdate, String emailAddress, String phoneNumber, String username, String password) {
+        String checkUserSQL = "SELECT COUNT(*) FROM Customers WHERE Username = ?";
+        String checkEmailSQL = "SELECT COUNT(*) FROM Customers WHERE Email_Address = ?";
+        String insertSQL = "INSERT INTO Customers (Customer_ID, Name, Gender, Birthdate, Email_Address, Phone_Number, Username, Password) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS)) {
+            // Check for duplicate username
+            try (PreparedStatement checkUserStmt = conn.prepareStatement(checkUserSQL)) {
+                checkUserStmt.setString(1, username);
+                ResultSet rs = checkUserStmt.executeQuery();
+                if (rs.next() && rs.getInt(1) > 0) {
+                    System.out.println("Username already exists.");
+                    return false;
+                }
+            }
+
+            // Check for duplicate email
+            try (PreparedStatement checkEmailStmt = conn.prepareStatement(checkEmailSQL)) {
+                checkEmailStmt.setString(1, emailAddress);
+                ResultSet rs = checkEmailStmt.executeQuery();
+                if (rs.next() && rs.getInt(1) > 0) {
+                    System.out.println("Email address already exists.");
+                    return false;
+                }
+            }
+
+            String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
+            String customerId = generateCustomerID();
+
+            try (PreparedStatement pstmt = conn.prepareStatement(insertSQL)) {
+                pstmt.setString(1, customerId);
+                pstmt.setString(2, name);
+                pstmt.setString(3, gender);
+                pstmt.setString(4, birthdate);
+                pstmt.setString(5, emailAddress);
+                pstmt.setString(6, phoneNumber);
+                pstmt.setString(7, username);
+                pstmt.setString(8, hashedPassword);
+                pstmt.executeUpdate();
+                return true;
+            }
         } catch (SQLException ex) {
             ex.printStackTrace();
             return false;
         }
     }
 
-    // Method to authenticate a user during login
+    // Authenticates a user during login
     public static boolean authenticateUser(String username, String password) {
         String query = "SELECT Password FROM Customers WHERE Username = ?";
 
@@ -62,18 +143,84 @@ public class DatabaseHelper {
 
             if (rs.next()) {
                 String storedHashedPassword = rs.getString("Password");
-                return BCrypt.checkpw(password, storedHashedPassword); // Check if the password matches
+                return BCrypt.checkpw(password, storedHashedPassword);
             }
-
         } catch (SQLException ex) {
             ex.printStackTrace();
         }
-
         return false;
     }
 
-    public static ArrayList<String> getPizzaNames() {
-        return executeSelectQuery("SELECT pizza_name FROM Pizzas", "pizza_name");
+    // Helper method to get customer ID by username
+    public static int getCustomerIdByUsername(String username) {
+        String query = "SELECT Customer_ID FROM Customers WHERE Username = ?";
+
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+
+            pstmt.setString(1, username);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                return rs.getInt("Customer_ID");
+            }
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+        }
+        return -1; // Return -1 if no ID is found or if there's an error
+    }
+
+    // Method to get Pizza_ID by Pizza Name
+    public static int getPizzaIdByName(String pizzaName) {
+        String query = "SELECT Pizza_ID FROM Pizzas WHERE Pizza_Name = ?";
+
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+
+            pstmt.setString(1, pizzaName);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                return rs.getInt("Pizza_ID");
+            }
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+        }
+        return -1; // Return -1 if Pizza_ID is not found
+    }
+
+    // Method to get Drink_ID by Drink Name
+    public static int getDrinkIdByName(String drinkName) {
+        String query = "SELECT Drink_ID FROM Drinks WHERE Drink_Name = ?";
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+
+            pstmt.setString(1, drinkName);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt("Drink_ID");
+            }
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+        }
+        return -1;  // Return -1 if Drink_ID is not found
+    }
+
+    // Method to get Dessert_ID by Dessert Name
+    public static int getDessertIdByName(String dessertName) {
+        String query = "SELECT Dessert_ID FROM Desserts WHERE Dessert_Name = ?";
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+
+            pstmt.setString(1, dessertName);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt("Dessert_ID");
+            }
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+        }
+        return -1;  // Return -1 if Dessert_ID is not found
     }
 
 
@@ -136,7 +283,7 @@ public class DatabaseHelper {
             while (rs.next()) {
                 String name = rs.getString("drink_name");
                 double price = rs.getDouble("drink_price");
-                drinks.add(new Drink(name, price));
+                drinks.add(new Drink(name,price));
             }
 
         } catch (SQLException e) {
@@ -367,4 +514,83 @@ public class DatabaseHelper {
         }
         return totalPizzasOrdered;
     }
+
+
+    // Inserts order items into the orderitems table
+    public static void insertOrderItem(int orderId, CartItem item) {
+        String insertItemSQL = "INSERT INTO orderitems (Order_ID, Customer_ID, Pizza_ID, Dessert_ID, Drink_ID, OrderItem_Amount) " +
+                "VALUES (?, ?, ?, ?, ?, ?)";
+
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(insertItemSQL)) {
+
+            conn.setAutoCommit(false); // Start transaction
+            int customerId = getCustomerIdByUsername(app.getCurrentUsername());
+
+            pstmt.setInt(1, orderId);
+            pstmt.setInt(2, customerId);
+
+            // Handle different item types
+            switch (item.getItemType()) {
+                case PIZZA:
+                    int pizzaId = getPizzaIdByName(item.getName());
+                    pstmt.setInt(3, pizzaId);
+                    pstmt.setNull(4, Types.INTEGER);
+                    pstmt.setNull(5, Types.INTEGER);
+                    break;
+                case DESSERT:
+                    int dessertId = getDessertIdByName(item.getName());
+                    pstmt.setNull(3, Types.INTEGER);
+                    pstmt.setInt(4, dessertId);
+                    pstmt.setNull(5, Types.INTEGER);
+                    break;
+                case DRINK:
+                    int drinkId = getDrinkIdByName(item.getName());
+                    pstmt.setNull(3, Types.INTEGER);
+                    pstmt.setNull(4, Types.INTEGER);
+                    pstmt.setInt(5, drinkId);
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unknown item type: " + item.getItemType());
+            }
+
+            pstmt.setInt(6, item.getQuantity());
+            pstmt.executeUpdate();
+            conn.commit(); // Commit transaction
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            // Rollback on failure
+            try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS)) {
+                conn.rollback();
+            } catch (SQLException rollbackEx) {
+                rollbackEx.printStackTrace();
+            }
+        }
+    }
+    public static UserInfo getUserInfo(int customer_id) {
+        UserInfo userInfo = null;
+        String query = "SELECT Name, Gender, Email_Address, Phone_Number FROM customers WHERE customer_id = ?";
+
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+
+            pstmt.setInt(1, customer_id);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                String name = rs.getString("Name");
+                String gender = rs.getString("Gender");
+                String emailAddress = rs.getString("Email_Address");
+                String phoneNumber = rs.getString("Phone_Number");
+
+                userInfo = new UserInfo(name, gender, emailAddress, phoneNumber);
+            }
+            rs.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return userInfo;
+    }
+
 }

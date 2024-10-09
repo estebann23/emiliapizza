@@ -18,7 +18,7 @@ public class DessertsPanel extends JPanel {
         setLayout(new BorderLayout());
         setPreferredSize(new Dimension(500, 600));
 
-        // Initialize cart button
+        // Initialize the cart button
         cartButton = new JButton();
 
         // Add the top panel with title and cart button
@@ -94,9 +94,9 @@ public class DessertsPanel extends JPanel {
         // Add action listener to the addToCart button
         addToCartButton.addActionListener(e -> {
             int quantity = (int) quantitySpinner.getValue();
-            for (int i = 0; i < quantity; i++) {
-                app.getOrder().add(dessert.getName());
-            }
+            CartItem newItem = new CartItem(dessert.getName(), DatabaseHelper.getDessertIdByName(dessert.getName()), CartItem.ItemType.DESSERT);
+            newItem.setQuantity(quantity);
+            app.getOrder().add(newItem);
             updateCartButton();
             dialog.dispose();
         });

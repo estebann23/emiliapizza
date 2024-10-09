@@ -18,7 +18,7 @@ public class CartPanel extends JDialog {
     private final JLabel discountedtotalLabel;
     private double totalAmount;
     private double discountValue = 0.0; // Discount percentage
-    private final HashMap<String, Integer> orderMap;
+    private final HashMap<CartItem, Integer> orderMap;
     private DefaultTableModel tableModel;
 
     public CartPanel(PizzaDeliveryApp app) {
@@ -36,11 +36,10 @@ public class CartPanel extends JDialog {
         setPreferredSize(new Dimension(500, 400));
         setResizable(false);
 
-        // Create and configure the table model with editable quantity column
         tableModel = new DefaultTableModel(new Object[]{"Item", "Quantity", "Price", "Actions"}, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
-                return column == 1 || column == 3; // Allow editing the Quantity and Actions columns
+                return column == 1 || column == 3;
             }
 
             @Override
@@ -48,23 +47,11 @@ public class CartPanel extends JDialog {
                 if (column == 1) {
                     try {
                         int newQuantity = Integer.parseInt(aValue.toString());
+                        CartItem item = (CartItem) getValueAt(row, 0);
                         if (newQuantity <= 0) {
-                            String item = (String) getValueAt(row, 0);
                             removeItem(item);
                         } else {
-                            String item = (String) getValueAt(row, 0);
-                            int oldQuantity = orderMap.get(item);
-                            int diff = newQuantity - oldQuantity;
-                            if (diff > 0) {
-                                for (int i = 0; i < diff; i++) {
-                                    app.getOrder().add(item);
-                                }
-                            } else if (diff < 0) {
-                                for (int i = 0; i < -diff; i++) {
-                                    app.getOrder().remove(item);
-                                }
-                            }
-                            orderMap.put(item, newQuantity);
+                            item.setQuantity(newQuantity);
                             updateCartDisplay();
                         }
                     } catch (NumberFormatException e) {
@@ -85,18 +72,15 @@ public class CartPanel extends JDialog {
         scrollPane.setBorder(new EmptyBorder(10, 10, 10, 10));
         add(scrollPane, BorderLayout.CENTER);
 
-        // Bottom panel for total and action buttons
         JPanel bottomPanel = new JPanel(new BorderLayout(10, 10));
         bottomPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
 
-        // Totals Label
         JPanel totalsPanel = new JPanel(new BorderLayout(10, 0));
         totalLabel.setFont(new Font("Arial", Font.BOLD, 18));
         discountedtotalLabel.setFont(new Font("Arial", Font.BOLD, 18));
-        totalsPanel.add(discountedtotalLabel, BorderLayout. SOUTH);
+        totalsPanel.add(discountedtotalLabel, BorderLayout.SOUTH);
         totalsPanel.add(totalLabel, BorderLayout.NORTH);
 
-        // Buttons Panel
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
 
         JButton clearCartButton = new JButton("Clear Cart");
@@ -111,10 +95,8 @@ public class CartPanel extends JDialog {
         bottomPanel.add(buttonPanel, BorderLayout.WEST);
         bottomPanel.add(totalsPanel, BorderLayout.EAST);
 
-
         add(bottomPanel, BorderLayout.SOUTH);
 
-        // Update the cart display initially
         updateCartDisplay();
         pack();
         setLocationRelativeTo(app.getFrame());
@@ -125,34 +107,35 @@ public class CartPanel extends JDialog {
         totalAmount = 0.0;
         orderMap.clear();
 
-        ArrayList<String> order = app.getOrder();
-        for (String item : order) {
-            orderMap.put(item, orderMap.getOrDefault(item, 0) + 1);
+        ArrayList<CartItem> order = app.getOrder();  // Adjust this to CartItem
+        for (CartItem item : order) {
+            orderMap.put(item, orderMap.getOrDefault(item, 0) + item.getQuantity());
         }
 
-        for (String item : orderMap.keySet()) {
+        for (CartItem item : orderMap.keySet()) {
             int quantity = orderMap.get(item);
             double itemPrice = 0.0;
 
-            // Check if the item is a pizza, drink, or dessert
-            if (DatabaseHelper.getPizzaNames().contains(item)) {
-                itemPrice = DatabaseHelper.getPizzaPriceByName(item);
-            } else if (DatabaseHelper.getDrinksNames().contains(item)) {
-                itemPrice = DatabaseHelper.getDrinkPriceByName(item);
-            } else if (DatabaseHelper.getDessertNames().contains(item)) {  // Handle desserts
-                itemPrice = DatabaseHelper.getDessertPriceByName(item);
+            switch (item.getItemType()) {
+                case PIZZA:
+                    itemPrice = DatabaseHelper.getPizzaPriceByName(item.getName());
+                    break;
+                case DRINK:
+                    itemPrice = DatabaseHelper.getDrinkPriceByName(item.getName());
+                    break;
+                case DESSERT:
+                    itemPrice = DatabaseHelper.getDessertPriceByName(item.getName());
+                    break;
             }
 
             totalAmount += itemPrice * quantity;
-
-            // Add row to the table
             tableModel.addRow(new Object[]{item, quantity, "$" + String.format("%.2f", itemPrice * quantity), "Remove"});
         }
 
         if (discountValue > 0) {
             double discountedTotal = totalAmount - (totalAmount * discountValue);
             totalLabel.setText("Before korting: " + String.format("%.2f", totalAmount));
-            discountedtotalLabel.setText("Total (after " + (discountValue*100) + "% off): $" + String.format("%.2f", discountedTotal));
+            discountedtotalLabel.setText("Total (after " + (discountValue * 100) + "% off): $" + String.format("%.2f", discountedTotal));
         } else {
             totalLabel.setText("Total Amount: $" + String.format("%.2f", totalAmount));
         }
@@ -162,23 +145,24 @@ public class CartPanel extends JDialog {
         this.discountValue = discountValue;
         updateCartDisplay();
     }
-    private void decreaseQuantity(String item) {
+
+    private void decreaseQuantity(CartItem item) {
         if (orderMap.containsKey(item)) {
             int quantity = orderMap.get(item);
             if (quantity > 1) {
-                orderMap.put(item, quantity - 1);
-                app.getOrder().remove(item); // Remove one instance of the item from the order list
+                item.setQuantity(quantity - 1);
+                app.getOrder().remove(item); // Update the order list
             } else {
                 removeItem(item); // If quantity is 1, remove the item
             }
-            updateCartDisplay(); // Refresh cart display after updating quantity
+            updateCartDisplay();
         }
     }
 
-    private void removeItem(String item) {
+    private void removeItem(CartItem item) {
         orderMap.remove(item); // Remove item from the map
-        app.getOrder().removeIf(orderItem -> orderItem.equals(item)); // Remove all instances of the item from the order list
-        updateCartDisplay(); // Refresh cart display after item removal
+        app.getOrder().removeIf(orderItem -> orderItem.equals(item)); // Remove all instances of the item
+        updateCartDisplay();
     }
 
     private void clearCart() {
@@ -186,22 +170,22 @@ public class CartPanel extends JDialog {
         updateCartDisplay();
     }
 
-    // Custom TableCellRenderer for displaying a button in a table cell
-    class ButtonRenderer extends JButton implements TableCellRenderer {
+    public double getCartTotal() {
+        return totalAmount;
+    }
 
+    class ButtonRenderer extends JButton implements TableCellRenderer {
         public ButtonRenderer() {
             setOpaque(true);
         }
 
         @Override
-        public Component getTableCellRendererComponent(JTable table, Object value,
-                                                       boolean isSelected, boolean hasFocus, int row, int column) {
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
             setText((value == null) ? "Remove" : value.toString());
             return this;
         }
     }
 
-    // Custom TableCellEditor for making a button clickable in a table cell
     class ButtonEditor extends DefaultCellEditor {
         protected JButton button;
         private String label;
@@ -211,16 +195,13 @@ public class CartPanel extends JDialog {
             super(checkBox);
             button = new JButton();
             button.setOpaque(true);
-            button.addActionListener(new ActionListener() {
-                public void actionPerformed(ActionEvent e) {
-                    fireEditingStopped();
-                }
-            });
+            button.addActionListener(e -> fireEditingStopped());
         }
 
+
+
         @Override
-        public Component getTableCellEditorComponent(JTable table, Object value,
-                                                     boolean isSelected, int row, int column) {
+        public Component getTableCellEditorComponent(JTable table, Object value, boolean isSelected, int row, int column) {
             label = (value == null) ? "Remove" : value.toString();
             button.setText(label);
             isPushed = true;
@@ -231,8 +212,8 @@ public class CartPanel extends JDialog {
         public Object getCellEditorValue() {
             if (isPushed) {
                 int selectedRow = cartTable.getSelectedRow();
-                String item = (String) tableModel.getValueAt(selectedRow, 0);
-                decreaseQuantity(item); // Call the decreaseQuantity method when the button is pressed
+                CartItem item = (CartItem) tableModel.getValueAt(selectedRow, 0);
+                decreaseQuantity(item);  // Call the decreaseQuantity method
             }
             isPushed = false;
             return label;
