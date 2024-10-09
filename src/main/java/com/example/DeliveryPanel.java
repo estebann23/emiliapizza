@@ -4,9 +4,11 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.sql.SQLException;
-import java.util.List;
+import java.util.LinkedList;
+import java.util.Queue;
 
 public class DeliveryPanel extends JPanel {
+    private static final Queue<OrderQueueEntry> orderQueue = new LinkedList<>();
     private final PizzaDeliveryApp app;
     private final JButton cartButton;
     private final JButton userButton;
@@ -16,7 +18,7 @@ public class DeliveryPanel extends JPanel {
     private JButton submitPostcodeButton;
     private JTextField discountField;
     private JButton submitDiscountButton;
-    private CartPanel cartPanel;  // Used to show the cart and calculate totals
+    private CartPanel cartPanel;
     private UserPanel userPanel;
 
     public DeliveryPanel(PizzaDeliveryApp app) {
@@ -91,39 +93,91 @@ public class DeliveryPanel extends JPanel {
             return;
         }
 
+        int customerId = app.getCustomerIdByUsername(app.getCurrentUsername());
+        double totalAmount = calculateTotalAmount();
+
+        int batchId = DatabaseHelper.getOrCreateBatchForOrder(postcode);
+        if (batchId == -1) {
+            JOptionPane.showMessageDialog(this, "Failed to assign a batch for this order.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
         String deliveryDriver = DatabaseHelper.getDeliveryDriver(postcode);
-        if (deliveryDriver != null) {
-            int customerId = app.getCustomerIdByUsername(app.getCurrentUsername());
 
-            double totalAmount = app.getOrder().stream().mapToDouble(item -> {
-                switch (item.getItemType()) {
-                    case PIZZA: return DatabaseHelper.getPizzaPriceByName(item.getName()) * item.getQuantity();
-                    case DESSERT: return DatabaseHelper.getDessertPriceByName(item.getName()) * item.getQuantity();
-                    case DRINK: return DatabaseHelper.getDrinkPriceByName(item.getName()) * item.getQuantity();
-                    default: return 0.0;
-                }
-            }).sum();
-
-            double discountValue = app.getCurrentDiscountValue(); // Get the current discount value
-            if (discountValue > 0) {
-                totalAmount -= totalAmount * discountValue; // Apply the discount
-            }
-
-            int orderId = DatabaseHelper.getCurrentOrderId();
-            boolean updated = DatabaseHelper.updateOrderDetails(orderId, totalAmount, deliveryDriver);
-
-            if (updated) {
-                for (CartItem item : app.getOrder()) {
-                    DatabaseHelper.insertOrderItem(orderId, item);
-                }
-                app.navigateToOrderStatusPanel(deliveryDriver);
-            } else {
-                JOptionPane.showMessageDialog(this, "Failed to update order details.", "Error", JOptionPane.ERROR_MESSAGE);
-            }
+        if (deliveryDriver == null) {
+            JOptionPane.showMessageDialog(this, "All drivers are currently busy. Please try ordering with us later.", "Info", JOptionPane.INFORMATION_MESSAGE);
+            addToOrderQueue(customerId, totalAmount, batchId, postcode);
+            return;
         } else {
-            JOptionPane.showMessageDialog(this, "No delivery driver found for this postal code. Enter a valid postcode.", "Error", JOptionPane.ERROR_MESSAGE);
+            DatabaseHelper.markDriverUnavailable(deliveryDriver);
+        }
+
+        if (finalizeOrder(customerId, totalAmount, deliveryDriver, 15 * 60)) {
+            app.navigateToOrderStatusPanel(deliveryDriver, 15 * 60);
+        } else {
+            JOptionPane.showMessageDialog(this, "Failed to update order details.", "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
+
+    private void addToOrderQueue(int customerId, double totalAmount, int batchId, String postcode) {
+        orderQueue.add(new OrderQueueEntry(customerId, totalAmount, batchId, postcode));
+        JOptionPane.showMessageDialog(this, "Your order has been added to the queue. We will notify you when a driver is available.", "Info", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private double calculateTotalAmount() {
+        double totalAmount = app.getOrder().stream().mapToDouble(item -> {
+            switch (item.getItemType()) {
+                case PIZZA: return DatabaseHelper.getPizzaPriceByName(item.getName()) * item.getQuantity();
+                case DESSERT: return DatabaseHelper.getDessertPriceByName(item.getName()) * item.getQuantity();
+                case DRINK: return DatabaseHelper.getDrinkPriceByName(item.getName()) * item.getQuantity();
+                default: return 0.0;
+            }
+        }).sum();
+
+        double discountValue = app.getCurrentDiscountValue();
+        if (discountValue > 0) {
+            totalAmount -= totalAmount * discountValue;
+        }
+
+        return totalAmount;
+    }
+
+    private boolean finalizeOrder(int customerId, double totalAmount, String deliveryDriver, int countdownTime) {
+        int orderId = DatabaseHelper.getCurrentOrderId();
+        if (DatabaseHelper.updateOrderDetails(orderId, totalAmount, deliveryDriver)) {
+            app.getOrder().forEach(item -> DatabaseHelper.insertOrderItem(orderId, item));
+            return true;
+        }
+        return false;
+    }
+
+    private void startQueueProcessing() {
+        Timer queueTimer = new Timer(10000, e -> {
+            if (!orderQueue.isEmpty()) {
+                OrderQueueEntry nextOrder = orderQueue.peek();
+                String deliveryDriver = DatabaseHelper.getDeliveryDriver(nextOrder.getPostcode());
+
+                if (deliveryDriver != null) {
+                    DatabaseHelper.markDriverUnavailable(deliveryDriver);
+                    try {
+                        int orderId = DatabaseHelper.createOrderInBatch(
+                                nextOrder.getCustomerId(),
+                                nextOrder.getTotalAmount(),
+                                nextOrder.getBatchId(),
+                                nextOrder.getPostcode(),
+                                deliveryDriver
+                        );
+                        app.navigateToOrderStatusPanel(deliveryDriver, 20 * 60);
+                        orderQueue.poll();
+                    } catch (SQLException ex) {
+                        ex.printStackTrace();
+                    }
+                }
+            }
+        });
+        queueTimer.start();
+    }
+
     private void showCartDialog() {
         if (app.getOrder().isEmpty()) {
             JOptionPane.showMessageDialog(this, "Your cart is empty!", "Cart", JOptionPane.INFORMATION_MESSAGE);
@@ -146,23 +200,53 @@ public class DeliveryPanel extends JPanel {
         }
 
         if (isDiscount(discount)) {
-            cartPanel.setVisible(true); // Show the cart panel to reflect the updated total
+            cartPanel.setVisible(true);
         } else {
             JOptionPane.showMessageDialog(this, "Discount code not valid.", "Invalid discount code", JOptionPane.ERROR_MESSAGE);
         }
     }
 
     public boolean isDiscount(String discount) {
-        List<DiscountCode> discountCodes = DatabaseHelper.getDiscountCodes();
+        java.util.List<DiscountCode> discountCodes = DatabaseHelper.getDiscountCodes();
         for (DiscountCode dc : discountCodes) {
             if (dc.getCode().equalsIgnoreCase(discount)) {
                 double discountValue = dc.getValue();
-                app.setCurrentDiscountValue(discountValue); // Store the discount in the app
+                app.setCurrentDiscountValue(discountValue);
                 cartPanel = new CartPanel(app);
                 cartPanel.applyDiscount(discountValue);
                 return true;
             }
         }
         return false;
+    }
+
+    private static class OrderQueueEntry {
+        private final int customerId;
+        private final double totalAmount;
+        private final int batchId;
+        private final String postcode;
+
+        public OrderQueueEntry(int customerId, double totalAmount, int batchId, String postcode) {
+            this.customerId = customerId;
+            this.totalAmount = totalAmount;
+            this.batchId = batchId;
+            this.postcode = postcode;
+        }
+
+        public int getCustomerId() {
+            return customerId;
+        }
+
+        public double getTotalAmount() {
+            return totalAmount;
+        }
+
+        public int getBatchId() {
+            return batchId;
+        }
+
+        public String getPostcode() {
+            return postcode;
+        }
     }
 }
