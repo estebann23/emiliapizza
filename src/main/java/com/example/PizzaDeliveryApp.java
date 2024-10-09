@@ -39,6 +39,7 @@ public class PizzaDeliveryApp {
         mainPanel.add(new DrinksPanel(this), PanelNames.DRINKS_PANEL);
         mainPanel.add(new DessertsPanel(this), PanelNames.DESSERTS_PANEL);
         mainPanel.add(new DeliveryPanel(this), PanelNames.DELIVERY_PANEL);
+        mainPanel.add(new EarningsReportPanel(this), PanelNames.EARNINGS_PANEL);
         frame.add(mainPanel);
         frame.setVisible(true);
     }

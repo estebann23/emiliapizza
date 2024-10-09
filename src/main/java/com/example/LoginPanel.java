@@ -48,10 +48,14 @@ public class LoginPanel extends JPanel {
         loginButton.addActionListener(e -> {
             boolean authenticated = DatabaseHelper.authenticateUser(usernameField.getText(), new String(passwordField.getPassword()));
             if (authenticated) {
-                app.setCurrentUsername(usernameField.getText());
-                int customerId = app.getCustomerIdByUsername(usernameField.getText());
-                DatabaseHelper.createNewOrder(customerId);
-                app.navigateTo(PanelNames.PIZZAS_PANEL);
+                if(usernameField.getText().equalsIgnoreCase("admin")) {
+                    app.navigateTo(PanelNames.EARNINGS_PANEL);
+                } else {
+                    app.setCurrentUsername(usernameField.getText());
+                    int customerId = app.getCustomerIdByUsername(usernameField.getText());
+                    DatabaseHelper.createNewOrder(customerId);
+                    app.navigateTo(PanelNames.PIZZAS_PANEL);
+                }
             } else {
                 JOptionPane.showMessageDialog(this, "Invalid login", "Error", JOptionPane.ERROR_MESSAGE);
             }
