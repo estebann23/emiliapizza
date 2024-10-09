@@ -8,4 +8,5 @@ public class PanelNames {
     public static final String DELIVERY_PANEL = "DeliveryPanel";
     public static final String CREATE_ACCOUNT_PANEL = "CreateAccountPanel";
     public static final String PIZZA_DETAILS_PANEL = "PizzaDetailsPanel";
+    public static final String EARNINGS_PANEL = "EarningsReportPanel";
 }

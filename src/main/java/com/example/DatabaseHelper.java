@@ -10,9 +10,9 @@ import java.util.UUID;
 
 public class DatabaseHelper {
     private static PizzaDeliveryApp app;
-    private static final String DB_URL = "jdbc:mysql://localhost:3306/PIZZARE";
+    private static final String DB_URL = "jdbc:mysql://localhost:3306/emiliadb";
     private static final String USER = "root";
-    private static final String PASS = "02072005";
+    private static final String PASS = "mysql2311";
     private static int currentOrderId = -1;
     private static Connection conn;
 
