@@ -6,6 +6,7 @@ import java.awt.*;
 import java.sql.SQLException;
 import java.util.LinkedList;
 import java.util.Queue;
+import java.sql.Timestamp;
 
 public class DeliveryPanel extends JPanel {
     private static final Queue<OrderQueueEntry> orderQueue = new LinkedList<>();
@@ -20,6 +21,7 @@ public class DeliveryPanel extends JPanel {
     private JButton submitDiscountButton;
     private CartPanel cartPanel;
     private UserPanel userPanel;
+
 
     public DeliveryPanel(PizzaDeliveryApp app) {
         this.app = app;
@@ -95,27 +97,35 @@ public class DeliveryPanel extends JPanel {
 
         int customerId = app.getCustomerIdByUsername(app.getCurrentUsername());
         double totalAmount = calculateTotalAmount();
+        Timestamp orderStartTime = new Timestamp(System.currentTimeMillis());
 
-        int batchId = DatabaseHelper.getOrCreateBatchForOrder(postcode);
-        if (batchId == -1) {
+        BatchInfo batchInfo = DatabaseHelper.getOrCreateBatchForOrder(orderStartTime);
+        if (batchInfo == null) {
             JOptionPane.showMessageDialog(this, "Failed to assign a batch for this order.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
-        String deliveryDriver = DatabaseHelper.getDeliveryDriver(postcode);
-
+        String deliveryDriver = batchInfo.driverName;
         if (deliveryDriver == null) {
             JOptionPane.showMessageDialog(this, "All drivers are currently busy. Please try ordering with us later.", "Info", JOptionPane.INFORMATION_MESSAGE);
-            addToOrderQueue(customerId, totalAmount, batchId, postcode);
+            addToOrderQueue(customerId, totalAmount, batchInfo.batchId, postcode);
             return;
-        } else {
-            DatabaseHelper.markDriverUnavailable(deliveryDriver);
         }
 
-        if (finalizeOrder(customerId, totalAmount, deliveryDriver, 15 * 60)) {
+        int orderId;
+        try {
+            orderId = DatabaseHelper.createOrderInBatch(customerId, totalAmount, batchInfo.batchId, postcode, deliveryDriver, orderStartTime);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(this, "Failed to create order.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        if (orderId != -1) {
+            app.getOrder().forEach(item -> DatabaseHelper.insertOrderItem(orderId, item));
             app.navigateToOrderStatusPanel(deliveryDriver, 15 * 60);
         } else {
-            JOptionPane.showMessageDialog(this, "Failed to update order details.", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Failed to create order.", "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
