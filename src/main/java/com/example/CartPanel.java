@@ -3,10 +3,9 @@ package com.example;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
-import javax.swing.table.TableCellEditor;
 import javax.swing.table.TableCellRenderer;
+import javax.swing.table.TableCellEditor;
 import java.awt.*;
-import java.awt.event.ActionEvent;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -18,7 +17,7 @@ public class CartPanel extends JDialog {
     private final JLabel totalLabel;
     private final JLabel discountedTotalLabel;
     private double totalAmount;
-    double discountValue = 0.0;
+    private double discountValue = 0.0;
     private final HashMap<CartItem, Integer> orderMap;
     private DefaultTableModel tableModel;
 
@@ -40,7 +39,6 @@ public class CartPanel extends JDialog {
             }
         }
         return pizzaQuantity;
-
     }
 
     private void initialize() {
@@ -115,7 +113,7 @@ public class CartPanel extends JDialog {
     public void updateCartDisplay() {
         tableModel.setRowCount(0);
         orderMap.clear();
-        totalAmount = 0.0; // Reset the total amount
+        totalAmount = 0.0;
 
         List<CartItem> order = app.getOrder();
         for (CartItem item : order) {
@@ -124,33 +122,30 @@ public class CartPanel extends JDialog {
 
         for (CartItem item : orderMap.keySet()) {
             int quantity = orderMap.get(item);
-            double itemPrice = DatabaseHelper.getItemPriceByNameAndType(item.getName(), item.getItemType()).orElse(0.0);
-            totalAmount += itemPrice * quantity; // Calculate the original total amount
+            double itemPrice = app.getDatabaseHelper().getItemPriceByNameAndType(item.getName(), item.getItemType()).orElse(0.0);
+            totalAmount += itemPrice * quantity;
             tableModel.addRow(new Object[]{item, quantity, "$" + String.format("%.2f", itemPrice * quantity), "Remove"});
         }
 
-        // Update the total amount label
         double finalTotal = totalAmount + DELIVERY_COST;
         totalLabel.setText("Total: $" + String.format("%.2f", totalAmount) + " + $"
                 + String.format("%.2f", DELIVERY_COST) + " (del.) = $" + String.format("%.2f", finalTotal));
 
-        // Retrieve the discount value from the PizzaDeliveryApp instance
         discountValue = app.getCurrentDiscountValue();
         if (discountValue > 0) {
-            // Apply the discount only to the total amount (excluding delivery)
             double discountedTotal = totalAmount - (totalAmount * discountValue);
             double finalTotalWithDiscount = discountedTotal + DELIVERY_COST;
             discountedTotalLabel.setText("Total (after " + (discountValue * 100) + "% off): $"
                     + String.format("%.2f", finalTotalWithDiscount));
         } else {
-            discountedTotalLabel.setText(""); // Clear the discounted total label if no discount is applied
+            discountedTotalLabel.setText("");
         }
     }
-    public void applyDiscount(double discountValue) {
-        app.setCurrentDiscountValue(discountValue); // Set the discount value in the app instance
-        updateCartDisplay(); // Update the cart display to reflect the new discount
-    }
 
+    public void applyDiscount(double discountValue) {
+        app.setCurrentDiscountValue(discountValue);
+        updateCartDisplay();
+    }
 
     private void removeItem(CartItem item) {
         orderMap.remove(item);
@@ -169,7 +164,8 @@ public class CartPanel extends JDialog {
         }
 
         @Override
-        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
+                                                       boolean hasFocus, int row, int column) {
             setText((value == null) ? "Remove" : value.toString());
             return this;
         }
@@ -188,13 +184,13 @@ public class CartPanel extends JDialog {
         }
 
         @Override
-        public Component getTableCellEditorComponent(JTable table, Object value, boolean isSelected, int row, int column) {
+        public Component getTableCellEditorComponent(JTable table, Object value, boolean isSelected,
+                                                     int row, int column) {
             label = (value == null) ? "Remove" : value.toString();
             button.setText(label);
             isPushed = true;
             return button;
         }
-
 
         @Override
         public Object getCellEditorValue() {

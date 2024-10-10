@@ -15,6 +15,7 @@ public class DatabaseHelper {
     private static final String USER = "root";
     private static final String PASS = "02072005";
     private static int currentOrderId = -1;
+    private Map<Integer, Timer> batchTimers = new HashMap<>();
 
     // Constructor to initialize the DatabaseHelper with the app instance
     public DatabaseHelper(PizzaDeliveryApp app) {
@@ -506,37 +507,65 @@ public class DatabaseHelper {
 
     // Methods related to batches and orders
 
-    public static BatchInfo getOrCreateBatchForOrder(Timestamp orderStartTime) {
-        BatchInfo batchInfo = getExistingBatchForTimeWindow(orderStartTime);
+    public BatchInfo getOrCreateBatchForOrder(Timestamp orderStartTime, String postcode) {
+        BatchInfo batchInfo = getExistingBatchForTimeWindow(orderStartTime, postcode);
         if (batchInfo == null) {
-            batchInfo = createNewBatch(orderStartTime);
+            batchInfo = createNewBatch(orderStartTime, postcode);
         }
         return batchInfo;
     }
-
-    public static BatchInfo getExistingBatchForTimeWindow(Timestamp orderStartTime) {
+    public BatchInfo getExistingBatchForTimeWindow(Timestamp orderStartTime, String postcode) {
         String query = "SELECT b.Batch_ID, b.DeliveryDriver_Name " +
                 "FROM batches b " +
-                "WHERE ABS(TIMESTAMPDIFF(MINUTE, b.Created_At, ?)) <= 3 " +
-                "AND b.Batch_ID IN (" +
-                "    SELECT Batch_ID FROM orders " +
-                "    GROUP BY Batch_ID HAVING COUNT(*) < 3" +
-                ") LIMIT 1";
-        return executeQueryForSingleResult(query, rs -> new BatchInfo(rs.getInt("Batch_ID"), rs.getString("DeliveryDriver_Name")), orderStartTime).orElse(null);
+                "WHERE b.Postcode = ? AND ABS(TIMESTAMPDIFF(SECOND, b.Created_At, ?)) <= 180 " + // 3 minutes window
+                "AND b.IsDispatched = 0 " +
+                "LIMIT 1";
+        return executeQueryForSingleResult(query, rs -> new BatchInfo(rs.getInt("Batch_ID"), rs.getString("DeliveryDriver_Name"), postcode), postcode, orderStartTime).orElse(null);
     }
 
-    public static BatchInfo createNewBatch(Timestamp batchCreatedAt) {
+    public BatchInfo createNewBatch(Timestamp batchCreatedAt, String postcode) {
         int batchId = Math.abs(UUID.randomUUID().hashCode());
         String driverName = getAvailableDriver();
         if (driverName == null) {
+            JOptionPane.showMessageDialog(null, "No available drivers at the moment. Please try again later.", "Driver Unavailable", JOptionPane.WARNING_MESSAGE);
             return null;
         }
-        String insertSQL = "INSERT INTO batches (Batch_ID, Created_At, DeliveryDriver_Name) VALUES (?, ?, ?)";
-        executeUpdate(insertSQL, batchId, batchCreatedAt, driverName);
-        return new BatchInfo(batchId, driverName);
+        String insertSQL = "INSERT INTO batches (Batch_ID, Created_At, DeliveryDriver_Name, Postcode, IsDispatched) VALUES (?, ?, ?, ?, 0)";
+        executeUpdate(insertSQL, batchId, batchCreatedAt, driverName, postcode);
+
+        // Start the 3-minute timer for this batch
+        startBatchTimer(batchId, driverName);
+
+        return new BatchInfo(batchId, driverName, postcode);
     }
 
-    public static String getAvailableDriver() {
+    public int getRemainingTimeForBatch(int batchId) {
+        String query = "SELECT TIMESTAMPDIFF(SECOND, NOW(), DATE_ADD(Created_At, INTERVAL 3 MINUTE)) AS remaining_time " +
+                "FROM batches WHERE Batch_ID = ?";
+        return executeQueryForSingleResult(query, rs -> rs.getInt("remaining_time"), batchId).orElse(0);
+    }
+
+
+    private void startBatchTimer(int batchId, String driverName) {
+        Timer timer = new Timer(3 * 60 * 1000, e -> {
+            dispatchBatch(batchId, driverName);
+        });
+        timer.setRepeats(false);
+        timer.start();
+        batchTimers.put(batchId, timer);
+    }
+    private void dispatchBatch(int batchId, String driverName) {
+        // Mark batch as dispatched
+        String updateBatchSQL = "UPDATE batches SET IsDispatched = 1 WHERE Batch_ID = ?";
+        executeUpdate(updateBatchSQL, batchId);
+
+        // Mark driver as unavailable
+        markDriverUnavailable(driverName);
+
+        // Remove the timer from the map
+        batchTimers.remove(batchId);
+    }
+    public String getAvailableDriver() {
         String query = "SELECT DeliveryDriver_Name FROM deliverydrivers WHERE isAvailable = 1 LIMIT 1";
         return executeQueryForSingleResult(query, rs -> rs.getString("DeliveryDriver_Name")).orElse(null);
     }
@@ -548,8 +577,8 @@ public class DatabaseHelper {
         return executeQueryForSingleResult(query, rs -> rs.getInt("Batch_ID"), postcode).orElse(-1);
     }
 
-    public static int getPizzaCountInBatch(int batchId) {
-        String query = "SELECT SUM(Pizza_Quantity) AS pizza_count FROM orderitems oi " +
+    public int getPizzaCountInBatch(int batchId) {
+        String query = "SELECT SUM(oi.Pizza_Quantity) AS pizza_count FROM orderitems oi " +
                 "JOIN orders o ON oi.Order_ID = o.Order_ID " +
                 "WHERE o.Batch_ID = ? AND oi.Pizza_ID IS NOT NULL";
         return executeQueryForSingleResult(query, rs -> rs.getInt("pizza_count"), batchId).orElse(0);
@@ -560,22 +589,31 @@ public class DatabaseHelper {
         return executeQueryForSingleResult(query, rs -> rs.getString("DeliveryDriver_Name")).orElse(null);
     }
 
-    public static int createOrderInBatch(int customerId, double totalAmount, int batchId, String postcode, String deliveryDriver, Timestamp orderStartTime) throws SQLException {
+    public int createOrderInBatch(int customerId, double totalAmount, int batchId, String postcode, String deliveryDriver, Timestamp orderStartTime) throws SQLException {
         int orderId = generateUniqueOrderId();
         String insertOrderSQL = "INSERT INTO orders (Order_ID, Customer_ID, Total_Amount, Batch_ID, Postcode, DeliveryDriver_ID, Order_Status, Order_Date, Order_StartTime) " +
                 "VALUES (?, ?, ?, ?, ?, (SELECT DeliveryDriver_ID FROM deliverydrivers WHERE DeliveryDriver_Name = ?), 'Order Confirmed', NOW(), ?)";
         executeUpdate(insertOrderSQL, orderId, customerId, totalAmount, batchId, postcode, deliveryDriver, orderStartTime);
+
         // After inserting the order, check if batch is full
         if (isBatchFull(batchId)) {
-            markDriverUnavailable(deliveryDriver);
+            // Cancel the batch timer if it's still running
+            Timer timer = batchTimers.get(batchId);
+            if (timer != null) {
+                timer.stop();
+                batchTimers.remove(batchId);
+            }
+            // Dispatch the batch immediately
+            dispatchBatch(batchId, deliveryDriver);
         }
         return orderId;
     }
 
-    public static boolean isBatchFull(int batchId) {
+    public boolean isBatchFull(int batchId) {
         int pizzaCount = getPizzaCountInBatch(batchId);
         return pizzaCount >= 3;
     }
+
     public static int getOrderCountInBatch(int batchId) {
         String query = "SELECT COUNT(*) FROM orders WHERE Batch_ID = ?";
         return executeQueryForSingleResult(query, rs -> rs.getInt(1), batchId).orElse(0);

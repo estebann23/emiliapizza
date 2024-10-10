@@ -1,4 +1,5 @@
 package com.example;
+
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
@@ -17,15 +18,12 @@ public class PizzaPanel extends JPanel {
         setLayout(new BorderLayout());
         setPreferredSize(new Dimension(500, 600));
 
-        // Initialize cart button
         cartButton = new JButton();
 
-        // Add the top panel with title and cart button
         JPanel topPanel = PanelHelper.createTopPanel("Pizza Menu", cartButton, app);
         add(topPanel, BorderLayout.NORTH);
 
-        // Get the list of pizza objects from the database
-        List<Pizza> pizzas = DatabaseHelper.getPizzaDetails();
+        List<Pizza> pizzas = app.getDatabaseHelper().getPizzaDetails();
 
         JPanel pizzaListPanel = new JPanel(new GridLayout(0, 1, 15, 15));
         pizzaListPanel.setBorder(new EmptyBorder(20, 20, 20, 20));
@@ -36,9 +34,7 @@ public class PizzaPanel extends JPanel {
             for (Pizza pizza : pizzas) {
                 JButton pizzaButton = new JButton(pizza.getName());
                 pizzaButton.setPreferredSize(new Dimension(300, 50));
-                pizzaButton.addActionListener(e -> {
-                    app.navigateToPizzaDetails(pizza);
-                });
+                pizzaButton.addActionListener(e -> app.navigateToPizzaDetails(pizza));
                 pizzaListPanel.add(pizzaButton);
             }
         }
@@ -48,7 +44,6 @@ public class PizzaPanel extends JPanel {
 
         JPanel bottomPanel = new JPanel(new BorderLayout());
 
-        // Proceed to Drinks button
         JButton nextButton = new JButton("Drinks");
         nextButton.addActionListener(e -> app.navigateTo(PanelNames.DRINKS_PANEL));
 

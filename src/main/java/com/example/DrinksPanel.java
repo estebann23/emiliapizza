@@ -22,7 +22,7 @@ public class DrinksPanel extends JPanel {
         JPanel topPanel = PanelHelper.createTopPanel("Drinks", cartButton, app);
         add(topPanel, BorderLayout.NORTH);
 
-        List<Drink> drinks = DatabaseHelper.getDrinkDetails();
+        List<Drink> drinks = app.getDatabaseHelper().getDrinkDetails();
         JPanel drinkListPanel = new JPanel(new GridLayout(0, 1, 15, 15));
         drinkListPanel.setBorder(new EmptyBorder(20, 20, 20, 20));
 
@@ -58,7 +58,8 @@ public class DrinksPanel extends JPanel {
         dialog.setSize(400, 250);
         dialog.setLayout(new BorderLayout(20, 20));
 
-        JLabel drinkLabel = new JLabel("<html><h2>" + drink.getName() + "</h2><p>Price: $" + String.format("%.2f", drink.getPrice()) + "</p></html>", JLabel.CENTER);
+        JLabel drinkLabel = new JLabel("<html><h2>" + drink.getName() + "</h2><p>Price: $"
+                + String.format("%.2f", drink.getPrice()) + "</p></html>", JLabel.CENTER);
         dialog.add(drinkLabel, BorderLayout.NORTH);
 
         JPanel quantityPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
@@ -80,7 +81,8 @@ public class DrinksPanel extends JPanel {
 
         addToCartButton.addActionListener(e -> {
             int quantity = (int) quantitySpinner.getValue();
-            CartItem newItem = new CartItem(drink.getName(), DatabaseHelper.getDrinkIdByName(drink.getName()), CartItem.ItemType.DRINK);
+            CartItem newItem = new CartItem(drink.getName(),
+                    app.getDatabaseHelper().getDrinkIdByName(drink.getName()), CartItem.ItemType.DRINK);
             newItem.setQuantity(quantity);
             app.getOrder().add(newItem);
             updateCartButton();

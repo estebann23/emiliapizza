@@ -1,13 +1,8 @@
 package com.example;
 
-import com.example.DatabaseHelper;
-import com.example.PanelNames;
-import com.example.PizzaDeliveryApp;
-
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
-
 
 public class LoginPanel extends JPanel {
     private final PizzaDeliveryApp app;
@@ -40,27 +35,28 @@ public class LoginPanel extends JPanel {
         JPanel buttonPanel = new JPanel();
         JButton loginButton = createButton("Log In", Color.GREEN);
         JButton createAccountButton = createButton("Create Account", Color.RED);
-        createAccountButton.addActionListener(e -> app.navigateTo(PanelNames.CREATE_ACCOUNT_PANEL));
 
         buttonPanel.add(loginButton);
         buttonPanel.add(createAccountButton);
         add(buttonPanel, BorderLayout.SOUTH);
 
         loginButton.addActionListener(e -> {
-            boolean authenticated = DatabaseHelper.authenticateUser(usernameField.getText(), new String(passwordField.getPassword()));
+            boolean authenticated = app.getDatabaseHelper().authenticateUser(usernameField.getText(),
+                    new String(passwordField.getPassword()));
             if (authenticated) {
-                if(usernameField.getText().equalsIgnoreCase("bas")) {
+                if (usernameField.getText().equalsIgnoreCase("bas")) {
                     app.navigateTo(PanelNames.EARNINGS_PANEL);
                 } else {
                     app.setCurrentUsername(usernameField.getText());
                     int customerId = app.getCustomerIdByUsername(usernameField.getText());
-                    DatabaseHelper.createNewOrder(customerId);
+                    app.getDatabaseHelper().createNewOrder(customerId);
                     app.navigateTo(PanelNames.PIZZAS_PANEL);
                 }
             } else {
                 JOptionPane.showMessageDialog(this, "Invalid login", "Error", JOptionPane.ERROR_MESSAGE);
             }
         });
+
         createAccountButton.addActionListener(e -> app.navigateTo(PanelNames.CREATE_ACCOUNT_PANEL));
     }
 
