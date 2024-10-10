@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.List;
 
 public class CartPanel extends JDialog {
+    private static final double DELIVERY_COST = 3.50;
     private final PizzaDeliveryApp app;
     private final JTable cartTable;
     private final JLabel totalLabel;
@@ -71,7 +72,6 @@ public class CartPanel extends JDialog {
                 }
             }
         };
-
         cartTable.setModel(tableModel);
         cartTable.setFont(new Font("Arial", Font.PLAIN, 14));
         cartTable.setRowHeight(30);
@@ -85,11 +85,11 @@ public class CartPanel extends JDialog {
         JPanel bottomPanel = new JPanel(new BorderLayout(10, 10));
         bottomPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
 
-        JPanel totalsPanel = new JPanel(new BorderLayout(10, 0));
+        JPanel totalsPanel = new JPanel(new GridLayout(2, 1, 10, 0));
         totalLabel.setFont(new Font("Arial", Font.BOLD, 18));
         discountedTotalLabel.setFont(new Font("Arial", Font.BOLD, 18));
-        totalsPanel.add(discountedTotalLabel, BorderLayout.SOUTH);
-        totalsPanel.add(totalLabel, BorderLayout.NORTH);
+        totalsPanel.add(totalLabel);
+        totalsPanel.add(discountedTotalLabel);
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
 
@@ -114,8 +114,8 @@ public class CartPanel extends JDialog {
 
     public void updateCartDisplay() {
         tableModel.setRowCount(0);
-        totalAmount = 0.0;
         orderMap.clear();
+        totalAmount = 0.0; // Reset the total amount
 
         List<CartItem> order = app.getOrder();
         for (CartItem item : order) {
@@ -125,18 +125,24 @@ public class CartPanel extends JDialog {
         for (CartItem item : orderMap.keySet()) {
             int quantity = orderMap.get(item);
             double itemPrice = DatabaseHelper.getItemPriceByNameAndType(item.getName(), item.getItemType()).orElse(0.0);
-            totalAmount += itemPrice * quantity;
+            totalAmount += itemPrice * quantity; // Calculate the original total amount
             tableModel.addRow(new Object[]{item, quantity, "$" + String.format("%.2f", itemPrice * quantity), "Remove"});
         }
+
+        // Update the total amount label
+        double finalTotal = totalAmount + DELIVERY_COST;
+        totalLabel.setText("Total: $" + String.format("%.2f", totalAmount) + " + $"
+                + String.format("%.2f", DELIVERY_COST) + " (del.) = $" + String.format("%.2f", finalTotal));
 
         // Retrieve the discount value from the PizzaDeliveryApp instance
         discountValue = app.getCurrentDiscountValue();
         if (discountValue > 0) {
+            // Apply the discount only to the total amount (excluding delivery)
             double discountedTotal = totalAmount - (totalAmount * discountValue);
-            totalLabel.setText("Before Discount: $" + String.format("%.2f", totalAmount));
-            discountedTotalLabel.setText("Total (after " + (discountValue * 100) + "% off): $" + String.format("%.2f", discountedTotal));
+            double finalTotalWithDiscount = discountedTotal + DELIVERY_COST;
+            discountedTotalLabel.setText("Total (after " + (discountValue * 100) + "% off): $"
+                    + String.format("%.2f", finalTotalWithDiscount));
         } else {
-            totalLabel.setText("Total Amount: $" + String.format("%.2f", totalAmount));
             discountedTotalLabel.setText(""); // Clear the discounted total label if no discount is applied
         }
     }

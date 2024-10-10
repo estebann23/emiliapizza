@@ -139,6 +139,10 @@ public class DeliveryPanel extends JPanel {
             totalAmount -= totalAmount * discountValue;
         }
 
+        // Include delivery cost if any
+        double deliveryCost = 3.50; // Example delivery cost
+        totalAmount += deliveryCost;
+
         return totalAmount;
     }
 

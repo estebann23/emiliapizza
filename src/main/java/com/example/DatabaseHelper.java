@@ -424,9 +424,10 @@ public class DatabaseHelper {
         return batchId;
     }
     public static int getExistingBatchForPostcode(String postcode) {
-        String query = "SELECT Batch_ID FROM orders " +
-                "WHERE Postcode = ? AND TIMESTAMPDIFF(MINUTE, Order_StartTime, NOW()) <= 3 " +
-                "GROUP BY Batch_ID HAVING SUM(Pizza_Quantity) <= 3 LIMIT 1";
+        String query = "SELECT o.Batch_ID FROM orders o " +
+                "JOIN orderitems oi ON o.Order_ID = oi.Order_ID " +
+                "WHERE o.Postcode = ? AND TIMESTAMPDIFF(MINUTE, o.Order_StartTime, NOW()) <= 3 " +
+                "GROUP BY o.Batch_ID HAVING SUM(oi.Pizza_Quantity) <= 3 LIMIT 1";
 
         try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
              PreparedStatement pstmt = conn.prepareStatement(query)) {
@@ -440,7 +441,6 @@ public class DatabaseHelper {
         }
         return -1;
     }
-
     public static int createNewBatch() {
         int batchId = Math.abs(UUID.randomUUID().hashCode());
         String insertSQL = "INSERT INTO batches (Batch_ID, Created_At) VALUES (?, NOW())";
@@ -721,26 +721,24 @@ public class DatabaseHelper {
             switch (item.getItemType()) {
                 case PIZZA:
                     int pizzaId = getPizzaIdByName(item.getName());
-                    pstmt.setInt(4, pizzaId);
+                    pstmt.setInt(4, pizzaId); // Pizza_ID
                     pstmt.setNull(5, Types.INTEGER); // Dessert_ID
                     pstmt.setNull(6, Types.INTEGER); // Drink_ID
-                    pstmt.setInt(7, item.getQuantity()); // OrderItem_Amount for pizzas
-                  // Pizza_Quantity
+                    pstmt.setInt(7, item.getQuantity()); // Pizza_Quantity for pizzas
                     break;
                 case DESSERT:
                     int dessertId = getDessertIdByName(item.getName());
                     pstmt.setNull(4, Types.INTEGER); // Pizza_ID
-                    pstmt.setInt(5, dessertId);
+                    pstmt.setInt(5, dessertId); // Dessert_ID
                     pstmt.setNull(6, Types.INTEGER); // Drink_ID
-                    pstmt.setNull(7, 0); // No OrderItem_Amount for non-pizza items// Pizza_Quantity set to 0 for non-pizza items
+                    pstmt.setNull(7, Types.INTEGER); // Pizza_Quantity set to null for non-pizza items
                     break;
                 case DRINK:
                     int drinkId = getDrinkIdByName(item.getName());
                     pstmt.setNull(4, Types.INTEGER); // Pizza_ID
                     pstmt.setNull(5, Types.INTEGER); // Dessert_ID
-                    pstmt.setInt(6, drinkId);
-                    pstmt.setNull(7, 0); // No OrderItem_Amount for non-pizza items
-                    // Pizza_Quantity set to 0 for non-pizza items
+                    pstmt.setInt(6, drinkId); // Drink_ID
+                    pstmt.setNull(7, Types.INTEGER); // Pizza_Quantity set to null for non-pizza items
                     break;
                 default:
                     throw new IllegalArgumentException("Unknown item type: " + item.getItemType());
@@ -753,7 +751,9 @@ public class DatabaseHelper {
             e.printStackTrace();
             // Rollback on failure
             try {
-                conn.rollback();
+                if (conn != null) {
+                    conn.rollback();
+                }
             } catch (SQLException rollbackEx) {
                 rollbackEx.printStackTrace();
             }
