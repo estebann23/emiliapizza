@@ -151,32 +151,6 @@ public class DeliveryPanel extends JPanel {
         return false;
     }
 
-    private void startQueueProcessing() {
-        Timer queueTimer = new Timer(10000, e -> {
-            if (!orderQueue.isEmpty()) {
-                OrderQueueEntry nextOrder = orderQueue.peek();
-                String deliveryDriver = DatabaseHelper.getDeliveryDriver(nextOrder.getPostcode());
-
-                if (deliveryDriver != null) {
-                    DatabaseHelper.markDriverUnavailable(deliveryDriver);
-                    try {
-                        int orderId = DatabaseHelper.createOrderInBatch(
-                                nextOrder.getCustomerId(),
-                                nextOrder.getTotalAmount(),
-                                nextOrder.getBatchId(),
-                                nextOrder.getPostcode(),
-                                deliveryDriver
-                        );
-                        app.navigateToOrderStatusPanel(deliveryDriver, 20 * 60);
-                        orderQueue.poll();
-                    } catch (SQLException ex) {
-                        ex.printStackTrace();
-                    }
-                }
-            }
-        });
-        queueTimer.start();
-    }
 
     private void showCartDialog() {
         if (app.getOrder().isEmpty()) {
@@ -233,20 +207,6 @@ public class DeliveryPanel extends JPanel {
             this.postcode = postcode;
         }
 
-        public int getCustomerId() {
-            return customerId;
-        }
 
-        public double getTotalAmount() {
-            return totalAmount;
-        }
-
-        public int getBatchId() {
-            return batchId;
-        }
-
-        public String getPostcode() {
-            return postcode;
-        }
     }
 }

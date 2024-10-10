@@ -426,7 +426,7 @@ public class DatabaseHelper {
     public static int getExistingBatchForPostcode(String postcode) {
         String query = "SELECT Batch_ID FROM orders " +
                 "WHERE Postcode = ? AND TIMESTAMPDIFF(MINUTE, Order_StartTime, NOW()) <= 3 " +
-                "GROUP BY Batch_ID HAVING SUM(OrderItem_Amount) < 3 LIMIT 1";
+                "GROUP BY Batch_ID HAVING SUM(Pizza_Quantity) <= 3 LIMIT 1";
 
         try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
              PreparedStatement pstmt = conn.prepareStatement(query)) {
@@ -459,7 +459,7 @@ public class DatabaseHelper {
         return Math.abs(UUID.randomUUID().hashCode());
     }
     public static int getPizzaCountInBatch(int batchId) {
-        String query = "SELECT SUM(oi.OrderItem_Amount) AS pizza_count FROM orderitems oi " +
+        String query = "SELECT SUM(Pizza_Quantity) AS pizza_count FROM orderitems oi " +
                 "JOIN orders o ON oi.Order_ID = o.Order_ID " +
                 "WHERE o.Batch_ID = ? AND oi.Pizza_ID IS NOT NULL";
         try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
@@ -677,7 +677,7 @@ public class DatabaseHelper {
 
     public static int getTotalPizzasOrderedByCustomer(String username) {
         int totalPizzasOrdered = 0;
-        String query = "SELECT SUM(oi.OrderItem_Amount) AS total_pizzas_ordered " +
+        String query = "SELECT SUM(Pizza_Quantity) AS total_pizzas_ordered " +
                 "FROM customers c " +
                 "JOIN orders o ON c.customer_id = o.customer_id " +
                 "JOIN orderitems oi ON o.order_id = oi.order_id " +
