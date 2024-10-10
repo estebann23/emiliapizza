@@ -1,9 +1,5 @@
 package com.example;
 
-import java.util.List;
-
-import static com.example.DatabaseHelper.getDiscountCodes;
-
 public class DiscountCode {
     private String code;
     private double value;
@@ -15,11 +11,12 @@ public class DiscountCode {
         this.isUsed = isUsed;
     }
 
+    // Getter methods
     public String getCode() {
         return code;
     }
-    public double getValue() {
 
+    public double getValue() {
         return value;
     }
 
@@ -27,18 +24,16 @@ public class DiscountCode {
         return isUsed;
     }
 
-
+    // Setter methods
     public void setCode(String code) {
-
         this.code = code;
     }
-    public void setValue(double value) {
 
+    public void setValue(double value) {
         this.value = value;
     }
 
     public void setUsed(boolean used) {
         isUsed = used;
     }
-
 }

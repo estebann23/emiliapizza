@@ -1,10 +1,10 @@
 package com.example;
 
 import javax.swing.*;
-import java.awt.*;
-import java.util.concurrent.atomic.AtomicInteger;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
+import java.awt.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class OrderStatusPanel extends JPanel {
     private final PizzaDeliveryApp app;
@@ -103,7 +103,7 @@ public class OrderStatusPanel extends JPanel {
     }
 
     private void cancelOrder() {
-        boolean isUpdated = DatabaseHelper.updateOrderStatusToCanceled(DatabaseHelper.getCurrentOrderId());
+        boolean isUpdated = app.getDatabaseHelper().updateOrderStatusToCanceled(app.getDatabaseHelper().getCurrentOrderId());
         if (isUpdated) {
             int confirmation = JOptionPane.showConfirmDialog(this,
                     "Are you sure you want to cancel the order?",
@@ -114,7 +114,7 @@ public class OrderStatusPanel extends JPanel {
             }
 
             String driverName = assignedDriverLabel.getText().replace("Assigned Delivery Driver: ", "");
-            DatabaseHelper.markDriverAvailable(driverName);
+            app.getDatabaseHelper().markDriverAvailable(driverName);
             JOptionPane.showMessageDialog(this, "Your order has been canceled.", "Order Canceled", JOptionPane.INFORMATION_MESSAGE);
             app.resetAllPanels();
             app.navigateTo(PanelNames.PIZZAS_PANEL);

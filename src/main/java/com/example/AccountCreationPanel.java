@@ -21,7 +21,7 @@ public class AccountCreationPanel extends JPanel {
         header.setHorizontalAlignment(JLabel.CENTER);
         add(header, BorderLayout.NORTH);
 
-        JPanel createAccountPanel = new JPanel(new GridLayout(9, 2, 10, 10));
+        JPanel createAccountPanel = new JPanel(new GridLayout(7, 2, 10, 10));
         createAccountPanel.setBorder(new EmptyBorder(10, 20, 10, 20));
 
         JTextField nameField = new JTextField();
@@ -58,9 +58,13 @@ public class AccountCreationPanel extends JPanel {
         add(buttonPanel, BorderLayout.SOUTH);
 
         createButton.addActionListener(e -> {
-            boolean accountCreated = DatabaseHelper.createAccount(
-                    nameField.getText(), genderField.getText(), birthdateField.getText(),
-                    emailField.getText(), phoneField.getText(), usernameField.getText(),
+            boolean accountCreated = app.getDatabaseHelper().createAccount(
+                    nameField.getText(),
+                    genderField.getText(),
+                    birthdateField.getText(),
+                    emailField.getText(),
+                    phoneField.getText(),
+                    usernameField.getText(),
                     new String(passwordField.getPassword())
             );
 

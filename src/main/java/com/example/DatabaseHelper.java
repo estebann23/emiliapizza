@@ -3,24 +3,25 @@ package com.example;
 import org.mindrot.jbcrypt.BCrypt;
 
 import javax.swing.*;
+import javax.swing.Timer;
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.UUID;
 
 public class DatabaseHelper {
+
     private static PizzaDeliveryApp app;
     private static final String DB_URL = "jdbc:mysql://localhost:3306/PIZZARE";
     private static final String USER = "root";
     private static final String PASS = "02072005";
     private static int currentOrderId = -1;
-    private static Connection conn;
+    private Map<Integer, Timer> batchTimers = new HashMap<>();
 
     // Constructor to initialize the DatabaseHelper with the app instance
     public DatabaseHelper(PizzaDeliveryApp app) {
         DatabaseHelper.app = app;
     }
+
     public static void setAppInstance(PizzaDeliveryApp appInstance) {
         app = appInstance;
     }
@@ -30,32 +31,26 @@ public class DatabaseHelper {
         return UUID.randomUUID().toString();
     }
 
-
-
     public static void markDriverUnavailable(String driverName) {
-        String updateSQL = "UPDATE deliverydrivers SET isAvailable = 0 WHERE DeliveryDriver_Name = ?";
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(updateSQL)) {
-            pstmt.setString(1, driverName);
-            pstmt.executeUpdate();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-
-        Timer timer = new Timer(30 * 60 * 1000, e -> markDriverAvailable(driverName));
-        timer.setRepeats(false);
-        timer.start();
+        updateDriverAvailability(driverName, false);
+        scheduleDriverAvailabilityUpdate(driverName, 30 * 60 * 1000); // 30 minutes
     }
 
     public static void markDriverAvailable(String driverName) {
-        String updateSQL = "UPDATE deliverydrivers SET isAvailable = 1 WHERE DeliveryDriver_Name = ?";
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(updateSQL)) {
-            pstmt.setString(1, driverName);
-            pstmt.executeUpdate();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+        updateDriverAvailability(driverName, true);
+    }
+
+    // Private helper for updating driver availability
+    private static void updateDriverAvailability(String driverName, boolean isAvailable) {
+        String updateSQL = "UPDATE deliverydrivers SET isAvailable = ? WHERE DeliveryDriver_Name = ?";
+        executeUpdate(updateSQL, isAvailable ? 1 : 0, driverName);
+    }
+
+    // Schedule a future task to mark a driver as available
+    private static void scheduleDriverAvailabilityUpdate(String driverName, int delayMillis) {
+        Timer timer = new Timer(delayMillis, e -> markDriverAvailable(driverName));
+        timer.setRepeats(false);
+        timer.start();
     }
 
     public static Optional<Double> getItemPriceByNameAndType(String name, CartItem.ItemType itemType) {
@@ -64,593 +59,258 @@ public class DatabaseHelper {
             case DRINK -> "SELECT drink_price AS price FROM drinks WHERE drink_name = ?";
             case DESSERT -> "SELECT dessert_price AS price FROM desserts WHERE dessert_name = ?";
         };
+        return executeQueryForSingleResult(query, rs -> rs.getDouble("price"), name);
+    }
 
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+    // Centralized method for creating a new connection
+    private static Connection getConnection() throws SQLException {
+        return DriverManager.getConnection(DB_URL, USER, PASS);
+    }
+
+    // General utility method to execute updates
+    private static void executeUpdate(String query, Object... params) {
+        try (Connection conn = getConnection();
              PreparedStatement pstmt = conn.prepareStatement(query)) {
-            pstmt.setString(1, name);
+            setParameters(pstmt, params);
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    // Utility for executing a query that returns a single result
+    private static <T> Optional<T> executeQueryForSingleResult(String query, ResultSetExtractor<T> extractor, Object... params) {
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+            setParameters(pstmt, params);
             ResultSet rs = pstmt.executeQuery();
             if (rs.next()) {
-                return Optional.of(rs.getDouble("price"));
+                return Optional.of(extractor.extract(rs));
             }
-        } catch (SQLException ex) {
-            ex.printStackTrace();
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
         return Optional.empty();
     }
 
+    // Method to set parameters for a PreparedStatement
+    private static void setParameters(PreparedStatement pstmt, Object... params) throws SQLException {
+        for (int i = 0; i < params.length; i++) {
+            pstmt.setObject(i + 1, params[i]);
+        }
+    }
 
-    // Generates a unique order ID
+    // Interface for extracting a result from a ResultSet
+    @FunctionalInterface
+    private interface ResultSetExtractor<T> {
+        T extract(ResultSet rs) throws SQLException;
+    }
+
     public static int generateUniqueOrderId() throws SQLException {
         int uniqueId = Math.abs(UUID.randomUUID().hashCode());
         String query = "SELECT COUNT(*) FROM orders WHERE Order_ID = ?";
-
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement stmt = conn.prepareStatement(query)) {
-            stmt.setInt(1, uniqueId);
-            ResultSet rs = stmt.executeQuery();
-            if (rs.next() && rs.getInt(1) > 0) {
-                return generateUniqueOrderId();
+        while (true) {
+            try (Connection conn = getConnection();
+                 PreparedStatement stmt = conn.prepareStatement(query)) {
+                stmt.setInt(1, uniqueId);
+                ResultSet rs = stmt.executeQuery();
+                if (rs.next() && rs.getInt(1) == 0) {
+                    break;
+                }
+                uniqueId = Math.abs(UUID.randomUUID().hashCode());
             }
         }
         return uniqueId;
     }
+
     public static void setCurrentOrderId(int orderId) {
         currentOrderId = orderId;
     }
 
     public static boolean updateOrderStatusToCanceled(int orderId) {
         String updateOrderSQL = "UPDATE orders SET Order_Status = 'Canceled', Order_EndTime = NOW() WHERE Order_ID = ?";
+        return executeUpdateWithResult(updateOrderSQL, orderId);
+    }
 
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(updateOrderSQL)) {
-
-            pstmt.setInt(1, orderId);
+    private static boolean executeUpdateWithResult(String query, Object... params) {
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+            setParameters(pstmt, params);
             int rowsAffected = pstmt.executeUpdate();
-            return rowsAffected > 0; // Return true if the update was successful
-
+            return rowsAffected > 0;
         } catch (SQLException e) {
             e.printStackTrace();
-            return false; // Return false if the update failed
         }
+        return false;
     }
-    // Updates an existing order with the specified details including Order_Date, Order_Status, and Order_StartTime
+
     public static boolean updateOrderDetails(int orderId, double totalAmount, String deliveryDriver) {
         String updateOrderSQL = "UPDATE orders SET Total_Amount = ?, DeliveryDriver_ID = (SELECT DeliveryDriver_ID FROM deliverydrivers WHERE DeliveryDriver_Name = ?), " +
                 "Order_Date = NOW(), Order_Status = 'Order Confirmed', Order_StartTime = NOW() WHERE Order_ID = ?";
-
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(updateOrderSQL)) {
-
-            pstmt.setDouble(1, totalAmount);
-            pstmt.setString(2, deliveryDriver);
-            pstmt.setInt(3, orderId);
-
-            int rowsAffected = pstmt.executeUpdate();
-            return rowsAffected > 0; // Return true if the update was successful
-        } catch (SQLException e) {
-            e.printStackTrace();
-            return false; // Return false if the update failed
-        }
+        return executeUpdateWithResult(updateOrderSQL, totalAmount, deliveryDriver, orderId);
     }
 
-
-
-    // Creates a new order, generates a unique order ID, stores it in the database, and sets it as the current order ID
     public static void createNewOrder(int customerId) {
         try {
             int orderId = generateUniqueOrderId();
             currentOrderId = orderId;
-
-            String insertOrderSQL = "INSERT INTO orders (Order_ID, Customer_ID) " +
-                    "VALUES (?, ?)";
-
-            try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-                 PreparedStatement pstmt = conn.prepareStatement(insertOrderSQL)) {
-
-                pstmt.setInt(1, orderId);
-                pstmt.setInt(2, customerId);
-                pstmt.executeUpdate();
-            }
+            String insertOrderSQL = "INSERT INTO orders (Order_ID, Customer_ID) VALUES (?, ?)";
+            executeUpdate(insertOrderSQL, orderId, customerId);
         } catch (SQLException e) {
             e.printStackTrace();
         }
     }
-    // Returns the current order ID
+
     public static int getCurrentOrderId() {
         return currentOrderId;
     }
 
-    // Creates a new account for a customer
     public static boolean createAccount(String name, String gender, String birthdate, String emailAddress, String phoneNumber, String username, String password) {
         String checkUserSQL = "SELECT COUNT(*) FROM Customers WHERE Username = ?";
         String checkEmailSQL = "SELECT COUNT(*) FROM Customers WHERE Email_Address = ?";
         String getMaxCustomerIdSQL = "SELECT MAX(Customer_ID) FROM Customers";
         String insertSQL = "INSERT INTO Customers (Customer_ID, Name, Gender, Birthdate, Email_Address, Phone_Number, Username, Password) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS)) {
-            // Check for duplicate username
-            try (PreparedStatement checkUserStmt = conn.prepareStatement(checkUserSQL)) {
-                checkUserStmt.setString(1, username);
-                ResultSet rs = checkUserStmt.executeQuery();
-                if (rs.next() && rs.getInt(1) > 0) {
-                    System.out.println("Username already exists.");
-                    return false;
-                }
+        try (Connection conn = getConnection()) {
+            if (isDuplicateEntry(conn, checkUserSQL, username)) {
+                System.out.println("Username already exists.");
+                return false;
             }
-
-            // Check for duplicate email
-            try (PreparedStatement checkEmailStmt = conn.prepareStatement(checkEmailSQL)) {
-                checkEmailStmt.setString(1, emailAddress);
-                ResultSet rs = checkEmailStmt.executeQuery();
-                if (rs.next() && rs.getInt(1) > 0) {
-                    System.out.println("Email address already exists.");
-                    return false;
-                }
+            if (isDuplicateEntry(conn, checkEmailSQL, emailAddress)) {
+                System.out.println("Email address already exists.");
+                return false;
             }
-            // Generate a new Customer_ID (max customer_id + 1)
-            int newCustomerId = 1;
-            try (PreparedStatement getMaxCustomerIdStmt = conn.prepareStatement(getMaxCustomerIdSQL)) {
-                ResultSet rs = getMaxCustomerIdStmt.executeQuery();
-                if (rs.next()) {
-                    newCustomerId = rs.getInt(1) + 1;
-                }
-            }
-
-
+            int newCustomerId = getMaxCustomerId(conn, getMaxCustomerIdSQL) + 1;
             String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
-            String customerId = generateCustomerID();
-
-            try (PreparedStatement pstmt = conn.prepareStatement(insertSQL)) {
-                pstmt.setInt(1, newCustomerId);
-                pstmt.setString(2, name);
-                pstmt.setString(3, gender);
-                pstmt.setString(4, birthdate);
-                pstmt.setString(5, emailAddress);
-                pstmt.setString(6, phoneNumber);
-                pstmt.setString(7, username);
-                pstmt.setString(8, hashedPassword);
-                pstmt.executeUpdate();
-                return true;
-            }
-        } catch (SQLException ex) {
-            ex.printStackTrace();
-            return false;
-        }
-    }
-
-
-    // Authenticates a user during login
-    public static boolean authenticateUser(String username, String password) {
-        String query = "SELECT Password FROM Customers WHERE Username = ?";
-
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(query)) {
-
-            pstmt.setString(1, username);
-            ResultSet rs = pstmt.executeQuery();
-
-            if (rs.next()) {
-                String storedHashedPassword = rs.getString("Password");
-                return BCrypt.checkpw(password, storedHashedPassword);
-            }
-        } catch (SQLException ex) {
-            ex.printStackTrace();
+            executeUpdate(insertSQL, newCustomerId, name, gender, birthdate, emailAddress, phoneNumber, username, hashedPassword);
+            return true;
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
         return false;
     }
 
-    // Helper method to get customer ID by username
+    private static boolean isDuplicateEntry(Connection conn, String query, String value) throws SQLException {
+        try (PreparedStatement pstmt = conn.prepareStatement(query)) {
+            pstmt.setString(1, value);
+            ResultSet rs = pstmt.executeQuery();
+            return rs.next() && rs.getInt(1) > 0;
+        }
+    }
+
+    private static int getMaxCustomerId(Connection conn, String query) throws SQLException {
+        try (PreparedStatement pstmt = conn.prepareStatement(query);
+             ResultSet rs = pstmt.executeQuery()) {
+            return rs.next() ? rs.getInt(1) : 0;
+        }
+    }
+
+    public static boolean authenticateUser(String username, String password) {
+        String query = "SELECT Password FROM Customers WHERE Username = ?";
+        Optional<String> storedHashedPassword = executeQueryForSingleResult(query, rs -> rs.getString("Password"), username);
+        return storedHashedPassword.map(hash -> BCrypt.checkpw(password, hash)).orElse(false);
+    }
+
     public static int getCustomerIdByUsername(String username) {
         String query = "SELECT Customer_ID FROM Customers WHERE Username = ?";
-
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(query)) {
-
-            pstmt.setString(1, username);
-            ResultSet rs = pstmt.executeQuery();
-
-            if (rs.next()) {
-                return rs.getInt("Customer_ID");
-            }
-        } catch (SQLException ex) {
-            ex.printStackTrace();
-        }
-        return -1; // Return -1 if no ID is found or if there's an error
+        return executeQueryForSingleResult(query, rs -> rs.getInt("Customer_ID"), username).orElse(-1);
     }
 
-    // Method to get Pizza_ID by Pizza Name
     public static int getPizzaIdByName(String pizzaName) {
         String query = "SELECT Pizza_ID FROM Pizzas WHERE Pizza_Name = ?";
-
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(query)) {
-
-            pstmt.setString(1, pizzaName);
-            ResultSet rs = pstmt.executeQuery();
-
-            if (rs.next()) {
-                return rs.getInt("Pizza_ID");
-            }
-        } catch (SQLException ex) {
-            ex.printStackTrace();
-        }
-        return -1; // Return -1 if Pizza_ID is not found
+        return executeQueryForSingleResult(query, rs -> rs.getInt("Pizza_ID"), pizzaName).orElse(-1);
     }
 
-    // Method to get Drink_ID by Drink Name
     public static int getDrinkIdByName(String drinkName) {
         String query = "SELECT Drink_ID FROM Drinks WHERE Drink_Name = ?";
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(query)) {
-
-            pstmt.setString(1, drinkName);
-            ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) {
-                return rs.getInt("Drink_ID");
-            }
-        } catch (SQLException ex) {
-            ex.printStackTrace();
-        }
-        return -1;  // Return -1 if Drink_ID is not found
+        return executeQueryForSingleResult(query, rs -> rs.getInt("Drink_ID"), drinkName).orElse(-1);
     }
 
-    // Method to get Dessert_ID by Dessert Name
     public static int getDessertIdByName(String dessertName) {
         String query = "SELECT Dessert_ID FROM Desserts WHERE Dessert_Name = ?";
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(query)) {
-
-            pstmt.setString(1, dessertName);
-            ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) {
-                return rs.getInt("Dessert_ID");
-            }
-        } catch (SQLException ex) {
-            ex.printStackTrace();
-        }
-        return -1;  // Return -1 if Dessert_ID is not found
+        return executeQueryForSingleResult(query, rs -> rs.getInt("Dessert_ID"), dessertName).orElse(-1);
     }
 
-
-
     public static List<Pizza> getPizzaDetails() {
-        List<Pizza> pizzas = new ArrayList<>();
-
         String query = "SELECT p.pizza_id, p.pizza_name, t.topping_name, t.topping_price, t.topping_isvegan, t.toppping_isvegetarian " +
                 "FROM pizzas p " +
                 "JOIN pizzatoppings pt ON p.pizza_id = pt.pizza_id " +
                 "JOIN toppings t ON pt.topping_id = t.topping_id";
-
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+        List<Pizza> pizzas = new ArrayList<>();
+        try (Connection conn = getConnection();
              PreparedStatement pstmt = conn.prepareStatement(query);
              ResultSet rs = pstmt.executeQuery()) {
 
-            Pizza currentPizza = null;
-            int currentPizzaId = -1;
+            Map<Integer, Pizza> pizzaMap = new HashMap<>();
 
             while (rs.next()) {
                 int pizzaId = rs.getInt("pizza_id");
                 String pizzaName = rs.getString("pizza_name");
-
-                // Debugging: Print pizza information to check if data is retrieved
-                System.out.println("Pizza ID: " + pizzaId + ", Pizza Name: " + pizzaName);
-
-                // If we're looking at a new pizza, create a new Pizza object
-                if (pizzaId != currentPizzaId) {
+                Pizza currentPizza = pizzaMap.get(pizzaId);
+                if (currentPizza == null) {
                     currentPizza = new Pizza(pizzaName);
                     pizzas.add(currentPizza);
-                    currentPizzaId = pizzaId;
+                    pizzaMap.put(pizzaId, currentPizza);
                 }
 
-                // Retrieve and print topping information
                 String toppingName = rs.getString("topping_name");
                 double toppingPrice = rs.getDouble("topping_price");
                 boolean toppingIsVegan = rs.getBoolean("topping_isvegan");
                 boolean toppingIsVegetarian = rs.getBoolean("toppping_isvegetarian");
-
-                System.out.println("Topping: " + toppingName + ", Price: " + toppingPrice);
-
-                // Add the current topping to the pizza
                 currentPizza.addTopping(new Topping(toppingName, toppingPrice, toppingIsVegan, toppingIsVegetarian));
             }
-
         } catch (SQLException e) {
             e.printStackTrace();
         }
-
         return pizzas;
     }
+
     public static List<Drink> getDrinkDetails() {
-        List<Drink> drinks = new ArrayList<>();
         String query = "SELECT drink_name, drink_price FROM Drinks";
-
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(query);
-             ResultSet rs = pstmt.executeQuery()) {
-
-            while (rs.next()) {
-                String name = rs.getString("drink_name");
-                double price = rs.getDouble("drink_price");
-                drinks.add(new Drink(name,price));
-            }
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-
-        return drinks;
+        return executeSelectQuery(query, rs -> new Drink(rs.getString("drink_name"), rs.getDouble("drink_price")));
     }
 
     public static ArrayList<String> getDrinksNames() {
-        return executeSelectQuery("SELECT drink_name FROM Drinks", "drink_name");
+        String query = "SELECT drink_name FROM Drinks";
+        return executeSelectQuery(query, rs -> rs.getString("drink_name"));
     }
+
     public static double getDrinkPriceByName(String drinkName) {
-        double price = 0.0;
         String query = "SELECT drink_price FROM Drinks WHERE drink_name = ?";
-
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(query)) {
-
-            pstmt.setString(1, drinkName);
-            ResultSet rs = pstmt.executeQuery();
-
-            if (rs.next()) {
-                price = rs.getDouble("drink_price");
-            }
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-
-        return price;
+        return executeQueryForSingleResult(query, rs -> rs.getDouble("drink_price"), drinkName).orElse(0.0);
     }
 
     public static List<Dessert> getDessertDetails() {
-        List<Dessert> desserts = new ArrayList<>();
         String query = "SELECT dessert_name, dessert_price FROM Desserts";
-
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(query);
-             ResultSet rs = pstmt.executeQuery()) {
-
-            while (rs.next()) {
-                String name = rs.getString("dessert_name");
-                double price = rs.getDouble("dessert_price");
-                desserts.add(new Dessert(name, price));
-            }
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-
-        return desserts;
-    }
-    public static BatchInfo getOrCreateBatchForOrder(Timestamp orderStartTime) {
-        BatchInfo batchInfo = getExistingBatchForTimeWindow(orderStartTime);
-        if (batchInfo == null) {
-            batchInfo = createNewBatch(orderStartTime);
-        }
-        return batchInfo;
-        }
-/*
-    public static int getExistingBatchForPostcode(String postcode) {
-        String query = "SELECT o.Batch_ID FROM orders o " +
-                "JOIN orderitems oi ON o.Order_ID = oi.Order_ID " +
-                "WHERE o.Postcode = ? AND TIMESTAMPDIFF(MINUTE, o.Order_StartTime, NOW()) <= 3 " +
-                "GROUP BY o.Batch_ID HAVING SUM(oi.Pizza_Quantity) <= 3 LIMIT 1";
-
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(query)) {
-            pstmt.setString(1, postcode);
-            ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) {
-                return rs.getInt("Batch_ID");
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return -1;
-    }
-
- */
-    public static BatchInfo getExistingBatchForTimeWindow(Timestamp orderStartTime) {
-        String query = "SELECT b.Batch_ID, b.DeliveryDriver_Name " +
-                "FROM batches b " +
-                "WHERE ABS(TIMESTAMPDIFF(MINUTE, b.Created_At, ?)) <= 3 " +
-                "AND b.Batch_ID IN (" +
-                "    SELECT Batch_ID FROM orders " +
-                "    GROUP BY Batch_ID HAVING COUNT(*) < 3" +
-                ") LIMIT 1";
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(query)) {
-            pstmt.setTimestamp(1, orderStartTime);
-            ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) {
-                int batchId = rs.getInt("Batch_ID");
-                String driverName = rs.getString("DeliveryDriver_Name");
-                return new BatchInfo(batchId, driverName);
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return null; // No existing batch found
-    }
-
-    public static BatchInfo createNewBatch(Timestamp batchCreatedAt) {
-        int batchId = Math.abs(UUID.randomUUID().hashCode());
-        String driverName = getAvailableDriver();
-        if (driverName == null) {
-            return null;
-        }
-        String insertSQL = "INSERT INTO batches (Batch_ID, Batch_Created_At, DeliveryDriver_Name) VALUES (?, ?, ?)";
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(insertSQL)) {
-            pstmt.setInt(1, batchId);
-            pstmt.setTimestamp(2, batchCreatedAt);
-            pstmt.setString(3, driverName);
-            pstmt.executeUpdate();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return new BatchInfo(batchId, driverName);
-    }
-
-    public static String getAvailableDriver() {
-        String query = "SELECT DeliveryDriver_Name FROM deliverydrivers WHERE isAvailable = 1 LIMIT 1";
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(query)) {
-            ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) {
-                return rs.getString("DeliveryDriver_Name");
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-
-    public static int getExistingBatchForPostcode(String postcode) {
-        String query = "SELECT Batch_ID FROM orders " +
-                "WHERE Postcode = ? AND TIMESTAMPDIFF(MINUTE, Order_StartTime, NOW()) <= 3 " +
-                "GROUP BY Batch_ID HAVING SUM(Pizza_Quantity) <= 3 LIMIT 1";
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(query)) {
-            pstmt.setString(1, postcode);
-            ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) {
-                return rs.getInt("Batch_ID");
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return -1;
-    }
-
-    private static int generateUniqueBatchId() {
-        return Math.abs(UUID.randomUUID().hashCode());
-    }
-    public static int getPizzaCountInBatch(int batchId) {
-        String query = "SELECT SUM(Pizza_Quantity) AS pizza_count FROM orderitems oi " +
-                "JOIN orders o ON oi.Order_ID = o.Order_ID " +
-                "WHERE o.Batch_ID = ? AND oi.Pizza_ID IS NOT NULL";
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(query)) {
-            pstmt.setInt(1, batchId);
-            ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) {
-                return rs.getInt("pizza_count");
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return 0;
-    }
-
-    public static String getDeliveryDriver(String postcode) {
-        String query = "SELECT DeliveryDriver_Name FROM deliverydrivers WHERE isAvailable = 1 LIMIT 1";
-
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(query)) {
-            ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) {
-                return rs.getString("DeliveryDriver_Name");
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-    public static int createOrderInBatch(int customerId, double totalAmount, int batchId, String postcode, String deliveryDriver, Timestamp orderStartTime) throws SQLException {
-        int orderId = generateUniqueOrderId();
-        String insertOrderSQL = "INSERT INTO orders (Order_ID, Customer_ID, Total_Amount, Batch_ID, Postcode, DeliveryDriver_ID, Order_Status, Order_Date, Order_StartTime) " +
-                "VALUES (?, ?, ?, ?, ?, (SELECT DeliveryDriver_ID FROM deliverydrivers WHERE DeliveryDriver_Name = ?), 'Order Confirmed', NOW(), ?)";
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(insertOrderSQL)) {
-            pstmt.setInt(1, orderId);
-            pstmt.setInt(2, customerId);
-            pstmt.setDouble(3, totalAmount);
-            pstmt.setInt(4, batchId);
-            pstmt.setString(5, postcode);
-            pstmt.setString(6, deliveryDriver);
-            pstmt.setTimestamp(7, orderStartTime);
-            pstmt.executeUpdate();
-            // After inserting the order, check if batch is full
-            if (isBatchFull(batchId)) {
-                markDriverUnavailable(deliveryDriver);
-            }
-            return orderId;
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return -1;
-    }
-
-    public static boolean isBatchFull(int batchId) {
-        int orderCount = getOrderCountInBatch(batchId);
-        return orderCount >= 3;
-    }
-    public static int getOrderCountInBatch(int batchId) {
-        String query = "SELECT COUNT(*) FROM orders WHERE Batch_ID = ?";
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(query)) {
-            pstmt.setInt(1, batchId);
-            ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) {
-                return rs.getInt(1);
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return 0;
-    }
-    public static double getDessertPriceByName(String dessertName) {
-        double price = 0.0;
-        String query = "SELECT dessert_price FROM Desserts WHERE dessert_name = ?";
-
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(query)) {
-
-            pstmt.setString(1, dessertName);
-            ResultSet rs = pstmt.executeQuery();
-
-            if (rs.next()) {
-                price = rs.getDouble("dessert_price");
-            }
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-
-        return price;
+        return executeSelectQuery(query, rs -> new Dessert(rs.getString("dessert_name"), rs.getDouble("dessert_price")));
     }
 
     public static ArrayList<String> getDessertNames() {
-        return executeSelectQuery("SELECT dessert_name FROM Desserts", "dessert_name");
+        String query = "SELECT dessert_name FROM Desserts";
+        return executeSelectQuery(query, rs -> rs.getString("dessert_name"));
     }
 
-    // Helper method used in DeliveryPanel class
+    public static double getDessertPriceByName(String dessertName) {
+        String query = "SELECT dessert_price FROM Desserts WHERE dessert_name = ?";
+        return executeQueryForSingleResult(query, rs -> rs.getDouble("dessert_price"), dessertName).orElse(0.0);
+    }
 
     public static double getPizzaPriceByName(String pizzaName) {
-        double totalIngredientCost = 0.0;
         String query = "SELECT t.topping_price " +
                 "FROM pizzas p " +
                 "JOIN pizzatoppings pt ON p.pizza_id = pt.pizza_id " +
                 "JOIN toppings t ON pt.topping_id = t.topping_id " +
                 "WHERE p.pizza_name = ?";
-
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+        try (Connection conn = getConnection();
              PreparedStatement pstmt = conn.prepareStatement(query)) {
-
             pstmt.setString(1, pizzaName);
             ResultSet rs = pstmt.executeQuery();
-
+            double totalIngredientCost = 0.0;
             while (rs.next()) {
                 totalIngredientCost += rs.getDouble("topping_price");
             }
-
             // Calculate the final price
             return PizzaPriceCalculator.calculateFinalPrice(totalIngredientCost);
-
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -665,7 +325,7 @@ public class DatabaseHelper {
                 "WHERE pt.pizza_id = ?";
         String updatePizzaPriceQuery = "UPDATE pizzas SET pizza_finalprice = ? WHERE pizza_id = ?";
 
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+        try (Connection conn = getConnection();
              PreparedStatement selectPizzaStmt = conn.prepareStatement(selectPizzaIdsQuery);
              PreparedStatement selectCostStmt = conn.prepareStatement(selectIngredientCostQuery);
              PreparedStatement updateStmt = conn.prepareStatement(updatePizzaPriceQuery);
@@ -699,50 +359,35 @@ public class DatabaseHelper {
     }
 
     public static List<DiscountCode> getDiscountCodes() {
-        List<DiscountCode> discountCodes = new ArrayList<>();
         String query = "SELECT DiscountCode, Discount_Value, DiscountCode_isAvailable FROM discountcodes";
-
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(query);
-             ResultSet rs = pstmt.executeQuery()) {
-
-            while (rs.next()) {
-                String code = rs.getString("DiscountCode");
-                double value = rs.getDouble("Discount_Value");
-                boolean isUsed = rs.getBoolean("DiscountCode_isAvailable");
-                discountCodes.add(new DiscountCode(code, value, isUsed));
-            }
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-
-        return discountCodes;
+        return executeSelectQuery(query, rs -> new DiscountCode(
+                rs.getString("DiscountCode"),
+                rs.getDouble("Discount_Value"),
+                rs.getBoolean("DiscountCode_isAvailable")
+        ));
     }
 
-
     // Helper method for querying the Items Selection from the DB
-    private static ArrayList<String> executeSelectQuery(String query, String columnLabel) {
-        ArrayList<String> resultList = new ArrayList<>();
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(query)) {
-
+    private static <T> ArrayList<T> executeSelectQuery(String query, ResultSetExtractor<T> extractor) {
+        ArrayList<T> resultList = new ArrayList<>();
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(query);
+             ResultSet rs = pstmt.executeQuery()) {
             while (rs.next()) {
-                resultList.add(rs.getString(columnLabel));
+                resultList.add(extractor.extract(rs));
             }
-
         } catch (SQLException e) {
             e.printStackTrace();
         }
         return resultList;
     }
+
     public static int generateUniqueOrderItemID() {
         int uniqueID;
         boolean isUnique = false;
         String query = "SELECT COUNT(*) FROM orderitems WHERE OrderItem_ID = ?";
 
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+        try (Connection conn = getConnection();
              PreparedStatement pstmt = conn.prepareStatement(query)) {
 
             // Loop until a unique ID is found
@@ -770,7 +415,6 @@ public class DatabaseHelper {
     }
 
     public static int getTotalPizzasOrderedByCustomer(String username) {
-        int totalPizzasOrdered = 0;
         String query = "SELECT SUM(Pizza_Quantity) AS total_pizzas_ordered " +
                 "FROM customers c " +
                 "JOIN orders o ON c.customer_id = o.customer_id " +
@@ -778,33 +422,20 @@ public class DatabaseHelper {
                 "JOIN pizzas p ON oi.pizza_id = p.pizza_id " +
                 "WHERE c.username = ? " +
                 "GROUP BY c.username";
-
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(query)) {
-            pstmt.setString(1, username);
-            ResultSet rs = pstmt.executeQuery();
-
-            if (rs.next()) {
-                totalPizzasOrdered = rs.getInt("total_pizzas_ordered");
-            }
-            rs.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return totalPizzasOrdered;
+        return executeQueryForSingleResult(query, rs -> rs.getInt("total_pizzas_ordered"), username).orElse(0);
     }
 
-
-    // Inserts order items into the orderitems table
     public static void insertOrderItem(int orderId, CartItem item) {
         int newOrderItemID = generateUniqueOrderItemID();
         String insertItemSQL = "INSERT INTO orderitems (OrderItem_ID, Order_ID, Customer_ID, Pizza_ID, Dessert_ID, Drink_ID, Pizza_Quantity) " +
                 "VALUES (?, ?, ?, ?, ?, ?, ?)";
 
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(insertItemSQL)) {
-
+        Connection conn = null;
+        try {
+            conn = getConnection();
             conn.setAutoCommit(false); // Start transaction
+            PreparedStatement pstmt = conn.prepareStatement(insertItemSQL);
+
             int customerId = getCustomerIdByUsername(app.getCurrentUsername());
 
             pstmt.setInt(1, newOrderItemID);
@@ -845,37 +476,146 @@ public class DatabaseHelper {
             e.printStackTrace();
             // Rollback on failure
             try {
-                if (conn != null) {
+                if (conn != null && !conn.isClosed()) {
                     conn.rollback();
                 }
             } catch (SQLException rollbackEx) {
                 rollbackEx.printStackTrace();
             }
-        }
-    }
-    public static UserInfo getUserInfo(int customer_id) {
-        UserInfo userInfo = null;
-        String query = "SELECT Name, Gender, Email_Address, Phone_Number FROM customers WHERE customer_id = ?";
-
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(query)) {
-
-            pstmt.setInt(1, customer_id);
-            ResultSet rs = pstmt.executeQuery();
-
-            if (rs.next()) {
-                String name = rs.getString("Name");
-                String gender = rs.getString("Gender");
-                String emailAddress = rs.getString("Email_Address");
-                String phoneNumber = rs.getString("Phone_Number");
-
-                userInfo = new UserInfo(name, gender, emailAddress, phoneNumber);
+        } finally {
+            // Ensure the connection is closed
+            if (conn != null) {
+                try {
+                    conn.setAutoCommit(true); // Reset auto-commit
+                    conn.close();
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
             }
-            rs.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
         }
-        return userInfo;
     }
 
+    public static UserInfo getUserInfo(int customer_id) {
+        String query = "SELECT Name, Gender, Email_Address, Phone_Number FROM customers WHERE customer_id = ?";
+        return executeQueryForSingleResult(query, rs -> new UserInfo(
+                rs.getString("Name"),
+                rs.getString("Gender"),
+                rs.getString("Email_Address"),
+                rs.getString("Phone_Number")
+        ), customer_id).orElse(null);
+    }
+
+    // Methods related to batches and orders
+
+    public BatchInfo getOrCreateBatchForOrder(Timestamp orderStartTime, String postcode) {
+        BatchInfo batchInfo = getExistingBatchForTimeWindow(orderStartTime, postcode);
+        if (batchInfo == null) {
+            batchInfo = createNewBatch(orderStartTime, postcode);
+        }
+        return batchInfo;
+    }
+    public BatchInfo getExistingBatchForTimeWindow(Timestamp orderStartTime, String postcode) {
+        String query = "SELECT b.Batch_ID, b.DeliveryDriver_Name " +
+                "FROM batches b " +
+                "WHERE b.Postcode = ? AND ABS(TIMESTAMPDIFF(SECOND, b.Created_At, ?)) <= 180 " + // 3 minutes window
+                "AND b.IsDispatched = 0 " +
+                "LIMIT 1";
+        return executeQueryForSingleResult(query, rs -> new BatchInfo(rs.getInt("Batch_ID"), rs.getString("DeliveryDriver_Name"), postcode), postcode, orderStartTime).orElse(null);
+    }
+
+    public BatchInfo createNewBatch(Timestamp batchCreatedAt, String postcode) {
+        int batchId = Math.abs(UUID.randomUUID().hashCode());
+        String driverName = getAvailableDriver();
+        if (driverName == null) {
+            JOptionPane.showMessageDialog(null, "No available drivers at the moment. Please try again later.", "Driver Unavailable", JOptionPane.WARNING_MESSAGE);
+            return null;
+        }
+        String insertSQL = "INSERT INTO batches (Batch_ID, Created_At, DeliveryDriver_Name, Postcode, IsDispatched) VALUES (?, ?, ?, ?, 0)";
+        executeUpdate(insertSQL, batchId, batchCreatedAt, driverName, postcode);
+
+        // Start the 3-minute timer for this batch
+        startBatchTimer(batchId, driverName);
+
+        return new BatchInfo(batchId, driverName, postcode);
+    }
+
+    public int getRemainingTimeForBatch(int batchId) {
+        String query = "SELECT TIMESTAMPDIFF(SECOND, NOW(), DATE_ADD(Created_At, INTERVAL 3 MINUTE)) AS remaining_time " +
+                "FROM batches WHERE Batch_ID = ?";
+        return executeQueryForSingleResult(query, rs -> rs.getInt("remaining_time"), batchId).orElse(0);
+    }
+
+
+    private void startBatchTimer(int batchId, String driverName) {
+        Timer timer = new Timer(3 * 60 * 1000, e -> {
+            dispatchBatch(batchId, driverName);
+        });
+        timer.setRepeats(false);
+        timer.start();
+        batchTimers.put(batchId, timer);
+    }
+    private void dispatchBatch(int batchId, String driverName) {
+        // Mark batch as dispatched
+        String updateBatchSQL = "UPDATE batches SET IsDispatched = 1 WHERE Batch_ID = ?";
+        executeUpdate(updateBatchSQL, batchId);
+
+        // Mark driver as unavailable
+        markDriverUnavailable(driverName);
+
+        // Remove the timer from the map
+        batchTimers.remove(batchId);
+    }
+    public String getAvailableDriver() {
+        String query = "SELECT DeliveryDriver_Name FROM deliverydrivers WHERE isAvailable = 1 LIMIT 1";
+        return executeQueryForSingleResult(query, rs -> rs.getString("DeliveryDriver_Name")).orElse(null);
+    }
+
+    public static int getExistingBatchForPostcode(String postcode) {
+        String query = "SELECT Batch_ID FROM orders " +
+                "WHERE Postcode = ? AND TIMESTAMPDIFF(MINUTE, Order_StartTime, NOW()) <= 3 " +
+                "GROUP BY Batch_ID HAVING SUM(Pizza_Quantity) <= 3 LIMIT 1";
+        return executeQueryForSingleResult(query, rs -> rs.getInt("Batch_ID"), postcode).orElse(-1);
+    }
+
+    public int getPizzaCountInBatch(int batchId) {
+        String query = "SELECT SUM(oi.Pizza_Quantity) AS pizza_count FROM orderitems oi " +
+                "JOIN orders o ON oi.Order_ID = o.Order_ID " +
+                "WHERE o.Batch_ID = ? AND oi.Pizza_ID IS NOT NULL";
+        return executeQueryForSingleResult(query, rs -> rs.getInt("pizza_count"), batchId).orElse(0);
+    }
+
+    public static String getDeliveryDriver(String postcode) {
+        String query = "SELECT DeliveryDriver_Name FROM deliverydrivers WHERE isAvailable = 1 LIMIT 1";
+        return executeQueryForSingleResult(query, rs -> rs.getString("DeliveryDriver_Name")).orElse(null);
+    }
+
+    public int createOrderInBatch(int customerId, double totalAmount, int batchId, String postcode, String deliveryDriver, Timestamp orderStartTime) throws SQLException {
+        int orderId = generateUniqueOrderId();
+        String insertOrderSQL = "INSERT INTO orders (Order_ID, Customer_ID, Total_Amount, Batch_ID, Postcode, DeliveryDriver_ID, Order_Status, Order_Date, Order_StartTime) " +
+                "VALUES (?, ?, ?, ?, ?, (SELECT DeliveryDriver_ID FROM deliverydrivers WHERE DeliveryDriver_Name = ?), 'Order Confirmed', NOW(), ?)";
+        executeUpdate(insertOrderSQL, orderId, customerId, totalAmount, batchId, postcode, deliveryDriver, orderStartTime);
+
+        // After inserting the order, check if batch is full
+        if (isBatchFull(batchId)) {
+            // Cancel the batch timer if it's still running
+            Timer timer = batchTimers.get(batchId);
+            if (timer != null) {
+                timer.stop();
+                batchTimers.remove(batchId);
+            }
+            // Dispatch the batch immediately
+            dispatchBatch(batchId, deliveryDriver);
+        }
+        return orderId;
+    }
+
+    public boolean isBatchFull(int batchId) {
+        int pizzaCount = getPizzaCountInBatch(batchId);
+        return pizzaCount >= 3;
+    }
+
+    public static int getOrderCountInBatch(int batchId) {
+        String query = "SELECT COUNT(*) FROM orders WHERE Batch_ID = ?";
+        return executeQueryForSingleResult(query, rs -> rs.getInt(1), batchId).orElse(0);
+    }
 }

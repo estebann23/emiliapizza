@@ -9,7 +9,6 @@ import java.util.Queue;
 import java.sql.Timestamp;
 
 public class DeliveryPanel extends JPanel {
-    private static final Queue<OrderQueueEntry> orderQueue = new LinkedList<>();
     private final PizzaDeliveryApp app;
     private final JButton cartButton;
     private final JButton userButton;
@@ -21,7 +20,6 @@ public class DeliveryPanel extends JPanel {
     private JButton submitDiscountButton;
     private CartPanel cartPanel;
     private UserPanel userPanel;
-
 
     public DeliveryPanel(PizzaDeliveryApp app) {
         this.app = app;
@@ -95,26 +93,26 @@ public class DeliveryPanel extends JPanel {
             return;
         }
 
-        int customerId = app.getCustomerIdByUsername(app.getCurrentUsername());
+        int customerId = app.getDatabaseHelper().getCustomerIdByUsername(app.getCurrentUsername());
         double totalAmount = calculateTotalAmount();
         Timestamp orderStartTime = new Timestamp(System.currentTimeMillis());
 
-        BatchInfo batchInfo = DatabaseHelper.getOrCreateBatchForOrder(orderStartTime);
+        // Pass the postcode to getOrCreateBatchForOrder
+        BatchInfo batchInfo = app.getDatabaseHelper().getOrCreateBatchForOrder(orderStartTime, postcode);
         if (batchInfo == null) {
-            JOptionPane.showMessageDialog(this, "Failed to assign a batch for this order.", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "No available drivers at the moment. Please try again later.", "Driver Unavailable", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
         String deliveryDriver = batchInfo.driverName;
         if (deliveryDriver == null) {
             JOptionPane.showMessageDialog(this, "All drivers are currently busy. Please try ordering with us later.", "Info", JOptionPane.INFORMATION_MESSAGE);
-            addToOrderQueue(customerId, totalAmount, batchInfo.batchId, postcode);
             return;
         }
 
         int orderId;
         try {
-            orderId = DatabaseHelper.createOrderInBatch(customerId, totalAmount, batchInfo.batchId, postcode, deliveryDriver, orderStartTime);
+            orderId = app.getDatabaseHelper().createOrderInBatch(customerId, totalAmount, batchInfo.batchId, postcode, deliveryDriver, orderStartTime);
         } catch (SQLException e) {
             e.printStackTrace();
             JOptionPane.showMessageDialog(this, "Failed to create order.", "Error", JOptionPane.ERROR_MESSAGE);
@@ -122,25 +120,38 @@ public class DeliveryPanel extends JPanel {
         }
 
         if (orderId != -1) {
-            app.getOrder().forEach(item -> DatabaseHelper.insertOrderItem(orderId, item));
-            app.navigateToOrderStatusPanel(deliveryDriver, 15 * 60);
+            app.getOrder().forEach(item -> app.getDatabaseHelper().insertOrderItem(orderId, item));
+
+            // Calculate estimated delivery time based on when the batch will be dispatched
+            int estimatedDeliveryTime = calculateEstimatedDeliveryTime(batchInfo.batchId);
+
+            app.navigateToOrderStatusPanel(deliveryDriver, estimatedDeliveryTime);
         } else {
             JOptionPane.showMessageDialog(this, "Failed to create order.", "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
-    private void addToOrderQueue(int customerId, double totalAmount, int batchId, String postcode) {
-        orderQueue.add(new OrderQueueEntry(customerId, totalAmount, batchId, postcode));
-        JOptionPane.showMessageDialog(this, "Your order has been added to the queue. We will notify you when a driver is available.", "Info", JOptionPane.INFORMATION_MESSAGE);
+    private int calculateEstimatedDeliveryTime(int batchId) {
+        // Calculate the remaining time until the batch is dispatched
+        int remainingTime = app.getDatabaseHelper().getRemainingTimeForBatch(batchId);
+
+        // Add delivery time (e.g., 15 minutes) to the remaining time
+        int deliveryTime = 15 * 60; // 15 minutes in seconds
+
+        return remainingTime + deliveryTime;
     }
 
     private double calculateTotalAmount() {
         double totalAmount = app.getOrder().stream().mapToDouble(item -> {
             switch (item.getItemType()) {
-                case PIZZA: return DatabaseHelper.getPizzaPriceByName(item.getName()) * item.getQuantity();
-                case DESSERT: return DatabaseHelper.getDessertPriceByName(item.getName()) * item.getQuantity();
-                case DRINK: return DatabaseHelper.getDrinkPriceByName(item.getName()) * item.getQuantity();
-                default: return 0.0;
+                case PIZZA:
+                    return app.getDatabaseHelper().getPizzaPriceByName(item.getName()) * item.getQuantity();
+                case DESSERT:
+                    return app.getDatabaseHelper().getDessertPriceByName(item.getName()) * item.getQuantity();
+                case DRINK:
+                    return app.getDatabaseHelper().getDrinkPriceByName(item.getName()) * item.getQuantity();
+                default:
+                    return 0.0;
             }
         }).sum();
 
@@ -155,16 +166,6 @@ public class DeliveryPanel extends JPanel {
 
         return totalAmount;
     }
-
-    private boolean finalizeOrder(int customerId, double totalAmount, String deliveryDriver, int countdownTime) {
-        int orderId = DatabaseHelper.getCurrentOrderId();
-        if (DatabaseHelper.updateOrderDetails(orderId, totalAmount, deliveryDriver)) {
-            app.getOrder().forEach(item -> DatabaseHelper.insertOrderItem(orderId, item));
-            return true;
-        }
-        return false;
-    }
-
 
     private void showCartDialog() {
         if (app.getOrder().isEmpty()) {
@@ -188,25 +189,30 @@ public class DeliveryPanel extends JPanel {
         }
 
         if (isDiscount(discount)) {
-            cartPanel.setVisible(true);
+            JOptionPane.showMessageDialog(this, "Discount applied successfully!", "Discount", JOptionPane.INFORMATION_MESSAGE);
         } else {
             JOptionPane.showMessageDialog(this, "Discount code not valid.", "Invalid discount code", JOptionPane.ERROR_MESSAGE);
         }
     }
 
     public boolean isDiscount(String discount) {
-        java.util.List<DiscountCode> discountCodes = DatabaseHelper.getDiscountCodes();
+        java.util.List<DiscountCode> discountCodes = app.getDatabaseHelper().getDiscountCodes();
         for (DiscountCode dc : discountCodes) {
-            if (dc.getCode().equalsIgnoreCase(discount)) {
+            if (dc.getCode().equalsIgnoreCase(discount) && !dc.isUsed()) {
                 double discountValue = dc.getValue();
                 app.setCurrentDiscountValue(discountValue);
-                cartPanel = new CartPanel(app);
-                cartPanel.applyDiscount(discountValue);
+                if (cartPanel != null) {
+                    cartPanel.applyDiscount(discountValue);
+                }
+                // Optionally, mark the discount code as used
+                // dc.setUsed(true);
                 return true;
             }
         }
         return false;
     }
+
+    // Removed the orderQueue and related methods as they are no longer needed with the updated logic
 
     private static class OrderQueueEntry {
         private final int customerId;
@@ -220,7 +226,5 @@ public class DeliveryPanel extends JPanel {
             this.batchId = batchId;
             this.postcode = postcode;
         }
-
-
     }
 }

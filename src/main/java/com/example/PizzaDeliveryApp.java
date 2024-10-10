@@ -14,12 +14,13 @@ public class PizzaDeliveryApp {
     private PizzaPanel pizzaPanel;
     private String currentUsername;
     private double currentDiscountValue = 0.0;
+    private DatabaseHelper databaseHelper; // Added instance variable
 
     public PizzaDeliveryApp() {
         panelHistory = new Stack<>();
         order = new ArrayList<>();
+        databaseHelper = new DatabaseHelper(this); // Initialize DatabaseHelper instance
         initializeUI();
-        DatabaseHelper.setAppInstance(this);
         updatePizzaPrices();
     }
 
@@ -106,7 +107,7 @@ public class PizzaDeliveryApp {
 
     private void updatePizzaPrices() {
         try {
-            DatabaseHelper.updatePizzaPricesForAll();
+            databaseHelper.updatePizzaPricesForAll();
             System.out.println("Pizza prices updated successfully.");
         } catch (Exception e) {
             JOptionPane.showMessageDialog(frame, "Error updating pizza prices: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
@@ -120,14 +121,14 @@ public class PizzaDeliveryApp {
     }
 
     public void addPizzaToOrder(String pizzaName, int quantity) {
-        CartItem newItem = new CartItem(pizzaName, DatabaseHelper.getPizzaIdByName(pizzaName), CartItem.ItemType.PIZZA);
+        CartItem newItem = new CartItem(pizzaName, databaseHelper.getPizzaIdByName(pizzaName), CartItem.ItemType.PIZZA);
         newItem.setQuantity(quantity);
         order.add(newItem);
         pizzaPanel.updateCartButton();
     }
 
     public int getCustomerIdByUsername(String username) {
-        return DatabaseHelper.getCustomerIdByUsername(username);
+        return databaseHelper.getCustomerIdByUsername(username);
     }
 
     public void setCurrentUsername(String username) {
@@ -170,5 +171,10 @@ public class PizzaDeliveryApp {
 
         navigateTo(PanelNames.LOGIN_PANEL);
         panelHistory.clear();
+    }
+
+    // Getter for DatabaseHelper
+    public DatabaseHelper getDatabaseHelper() {
+        return databaseHelper;
     }
 }
