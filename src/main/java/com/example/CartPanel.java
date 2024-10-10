@@ -20,14 +20,17 @@ public class CartPanel extends JDialog {
     private double discountValue = 0.0;
     private final HashMap<CartItem, Integer> orderMap;
     private DefaultTableModel tableModel;
+    private double fixedDiscountAmount = 0.0;
+    private boolean includeDeliveryCost;
 
-    public CartPanel(PizzaDeliveryApp app) {
+    public CartPanel(PizzaDeliveryApp app, boolean includeDeliveryCost) {
         super(app.getFrame(), "Your Cart", true);
         this.app = app;
         this.totalLabel = new JLabel("Total Amount: $0.00");
         this.discountedTotalLabel = new JLabel();
         this.orderMap = new HashMap<>();
         this.cartTable = new JTable();
+        this.includeDeliveryCost = includeDeliveryCost;
         initialize();
     }
 
@@ -128,22 +131,45 @@ public class CartPanel extends JDialog {
         }
 
         double finalTotal = totalAmount + DELIVERY_COST;
-        totalLabel.setText("Total: $" + String.format("%.2f", totalAmount) + " + $"
-                + String.format("%.2f", DELIVERY_COST) + " (del.) = $" + String.format("%.2f", finalTotal));
 
         discountValue = app.getCurrentDiscountValue();
+        double discountedTotal = totalAmount;
         if (discountValue > 0) {
-            double discountedTotal = totalAmount - (totalAmount * discountValue);
-            double finalTotalWithDiscount = discountedTotal + DELIVERY_COST;
-            discountedTotalLabel.setText("Total (after " + (discountValue * 100) + "% off): $"
-                    + String.format("%.2f", finalTotalWithDiscount));
+            discountedTotal = totalAmount - (totalAmount * discountValue);
+        }
+        // Apply birthday discount
+        fixedDiscountAmount = app.getCurrentFixedDiscountAmount();
+        if (fixedDiscountAmount > 0) {
+            discountedTotal -= fixedDiscountAmount;
+        }
+        double finalTotalWithDiscount = discountedTotal + DELIVERY_COST;
+        if (includeDeliveryCost) {
+            totalLabel.setText("Total: $" + String.format("%.2f", totalAmount) + " + $"
+                    + String.format("%.2f", DELIVERY_COST) + " (del.) = $" + String.format("%.2f", finalTotal));
+        } else {
+            totalLabel.setText("Total: $" + String.format("%.2f", totalAmount));
+        }
+
+
+        if (discountValue > 0 || fixedDiscountAmount > 0) {
+            StringBuilder discountText = new StringBuilder("Total after discount: $");
+            discountText.append(String.format("%.2f", finalTotalWithDiscount)).append(" (You save $");
+            double totalSavings = (totalAmount - discountedTotal);
+            discountText.append(String.format("%.2f", totalSavings)).append(")");
+            discountedTotalLabel.setText(discountText.toString());
         } else {
             discountedTotalLabel.setText("");
         }
     }
 
-    public void applyDiscount(double discountValue) {
+
+    public void applyPercentageDiscount(double discountValue) {
         app.setCurrentDiscountValue(discountValue);
+        updateCartDisplay();
+    }
+
+    public void applyFixedDiscount(double fixedAmount) {
+        app.setCurrentFixedDiscountAmount(fixedAmount);
         updateCartDisplay();
     }
 

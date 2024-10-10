@@ -1,17 +1,24 @@
+// DiscountCode.java
 package com.example;
 
 public class DiscountCode {
+    private int id;
     private String code;
     private double value;
-    private boolean isUsed;
+    private boolean isAvailable;
 
-    public DiscountCode(String code, double value, boolean isUsed) {
+    public DiscountCode(int id, String code, double value, boolean isAvailable) {
+        this.id = id;
         this.code = code;
         this.value = value;
-        this.isUsed = isUsed;
+        this.isAvailable = isAvailable;
     }
 
     // Getter methods
+    public int getId() {
+        return id;
+    }
+
     public String getCode() {
         return code;
     }
@@ -20,20 +27,7 @@ public class DiscountCode {
         return value;
     }
 
-    public boolean isUsed() {
-        return isUsed;
-    }
-
-    // Setter methods
-    public void setCode(String code) {
-        this.code = code;
-    }
-
-    public void setValue(double value) {
-        this.value = value;
-    }
-
-    public void setUsed(boolean used) {
-        isUsed = used;
+    public boolean isAvailable() {
+        return isAvailable;
     }
 }

@@ -82,7 +82,7 @@ public class RestaurantMonitoring {
             }
         };
         // Schedule the task to run every 1000 milliseconds (1 second)
-        dataRefreshTimer.scheduleAtFixedRate(refreshDataTask, 0, 1000);
+        dataRefreshTimer.scheduleAtFixedRate(refreshDataTask, 0, 100);
     }
 
     private static void loadData() {

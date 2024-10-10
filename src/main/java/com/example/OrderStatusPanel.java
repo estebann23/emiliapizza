@@ -1,10 +1,10 @@
 package com.example;
 
 import javax.swing.*;
-import javax.swing.Timer;
-import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import javax.swing.Timer;
+import javax.swing.border.EmptyBorder;
 
 public class OrderStatusPanel extends JPanel {
     private final PizzaDeliveryApp app;
@@ -15,7 +15,7 @@ public class OrderStatusPanel extends JPanel {
     private JButton cancelOrderButton;
     private Timer countdownTimer;
     private Timer statusUpdateTimer;
-    private int currentStatusIndex = 0;
+    private int currentStatusIndex = 0; // Track the current status index
     private final String[] statuses = {"Order Received", "Being prepared", "Out for delivery", "Delivered"};
 
     public OrderStatusPanel(PizzaDeliveryApp app, String assignedDriver, int countdownTime) {
@@ -24,7 +24,7 @@ public class OrderStatusPanel extends JPanel {
         this.countdownSeconds = countdownTime;
         initialize();
         startCountdown(countdownTime);
-        startStatusUpdate();
+        startStatusUpdate(); // Start status updates
     }
 
     private void initialize() {
@@ -74,7 +74,7 @@ public class OrderStatusPanel extends JPanel {
     }
 
     private void startCancelTimer() {
-        AtomicInteger cancelTimeLimit = new AtomicInteger(5 * 60);
+        AtomicInteger cancelTimeLimit = new AtomicInteger(5 * 60); // 5 minutes
         cancelCountdownLabel.setText("You have " + timeFormat(cancelTimeLimit.get()) + " minutes to cancel the order.");
 
         Timer cancelTimer = new Timer(1000, e -> {
@@ -91,30 +91,31 @@ public class OrderStatusPanel extends JPanel {
     }
 
     private void startStatusUpdate() {
+        // Update the status every 5 minutes (300,000 milliseconds)
         statusUpdateTimer = new Timer(300000, e -> {
             if (currentStatusIndex < statuses.length - 1) {
                 currentStatusIndex++;
-                repaint();
+                repaint(); // Trigger a repaint to update the status progress panel
             } else {
-                statusUpdateTimer.stop();
+                statusUpdateTimer.stop(); // Stop the timer when the last status is reached
             }
         });
         statusUpdateTimer.start();
     }
 
     private void cancelOrder() {
-        boolean isUpdated = app.getDatabaseHelper().updateOrderStatusToCanceled(app.getDatabaseHelper().getCurrentOrderId());
+        int confirmation = JOptionPane.showConfirmDialog(this,
+                "Are you sure you want to cancel the order?",
+                "Confirm Cancellation", JOptionPane.YES_NO_OPTION);
+
+        if (confirmation == JOptionPane.NO_OPTION) {
+            return;
+        }
+
+        boolean isUpdated = DatabaseHelper.updateOrderStatusToCanceled(DatabaseHelper.getCurrentOrderId());
         if (isUpdated) {
-            int confirmation = JOptionPane.showConfirmDialog(this,
-                    "Are you sure you want to cancel the order?",
-                    "Confirm Cancellation", JOptionPane.YES_NO_OPTION);
-
-            if (confirmation == JOptionPane.NO_OPTION) {
-                return;
-            }
-
             String driverName = assignedDriverLabel.getText().replace("Assigned Delivery Driver: ", "");
-            app.getDatabaseHelper().markDriverAvailable(driverName);
+            DatabaseHelper.markDriverAvailable(driverName);
             JOptionPane.showMessageDialog(this, "Your order has been canceled.", "Order Canceled", JOptionPane.INFORMATION_MESSAGE);
             app.resetAllPanels();
             app.navigateTo(PanelNames.PIZZAS_PANEL);
@@ -141,16 +142,20 @@ public class OrderStatusPanel extends JPanel {
             int spacing = (width - 2 * circleRadius) / (statuses.length - 1);
             int y = getHeight() / 2;
 
+            // Draw the line connecting the circles
             g2d.setColor(Color.LIGHT_GRAY);
             g2d.setStroke(new BasicStroke(3));
             g2d.drawLine(circleRadius, y, width - circleRadius, y);
 
+            // Draw the circles and labels
             for (int i = 0; i < statuses.length; i++) {
                 int x = circleRadius + i * spacing;
 
+                // Set the color for the circle based on the current status index
                 g2d.setColor(i <= currentStatusIndex ? Color.BLUE : Color.LIGHT_GRAY);
                 g2d.fillOval(x - circleRadius, y - circleRadius, 2 * circleRadius, 2 * circleRadius);
 
+                // Draw the status label below each circle
                 g2d.setColor(Color.BLACK);
                 String statusLabel = statuses[i];
                 FontMetrics fm = g2d.getFontMetrics();

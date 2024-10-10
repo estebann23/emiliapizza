@@ -4,9 +4,13 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.sql.SQLException;
-import java.util.LinkedList;
-import java.util.Queue;
 import java.sql.Timestamp;
+import com.example.DiscountCode;
+import java.util.Date;
+import java.util.Calendar;
+
+import java.util.List;
+import java.util.Optional;
 
 public class DeliveryPanel extends JPanel {
     private final PizzaDeliveryApp app;
@@ -20,6 +24,8 @@ public class DeliveryPanel extends JPanel {
     private JButton submitDiscountButton;
     private CartPanel cartPanel;
     private UserPanel userPanel;
+    private DiscountCode appliedDiscountCode;
+    private boolean isOrderConfirmed = false;// Added to store the applied discount code
 
     public DeliveryPanel(PizzaDeliveryApp app) {
         this.app = app;
@@ -40,7 +46,10 @@ public class DeliveryPanel extends JPanel {
         JLabel topTextLabel = new JLabel("Order Checkout");
         topTextLabel.setFont(new Font("Arial", Font.BOLD, 18));
         topTextPanel.add(topTextLabel);
-        cartButton.addActionListener(e -> showCartDialog());
+        cartButton.addActionListener(e -> {
+            checkDiscount();
+            showCartDialog();
+        });
         userButton.addActionListener(e -> {
             try {
                 showUserDialog();
@@ -81,12 +90,22 @@ public class DeliveryPanel extends JPanel {
         postcodePanel.add(submitPostcodeButton);
         centerPanel.add(postcodePanel);
 
-        submitPostcodeButton.addActionListener(e -> confirmOrder());
+        submitPostcodeButton.addActionListener(e -> {
+            try {
+                confirmOrder();
+            } catch (SQLException ex) {
+                throw new RuntimeException(ex);
+            }
+        });
 
         add(centerPanel, BorderLayout.CENTER);
     }
 
-    private void confirmOrder() {
+    private void confirmOrder() throws SQLException {
+        if (isOrderConfirmed) {
+            return;
+        }
+
         String postcode = postcodeField.getText().trim();
         if (postcode.isEmpty()) {
             JOptionPane.showMessageDialog(this, "Please enter a postal code.", "Error", JOptionPane.ERROR_MESSAGE);
@@ -110,9 +129,12 @@ public class DeliveryPanel extends JPanel {
             return;
         }
 
+        int discountCodeId = (appliedDiscountCode != null) ? appliedDiscountCode.getId() : -1;
+
         int orderId;
         try {
-            orderId = app.getDatabaseHelper().createOrderInBatch(customerId, totalAmount, batchInfo.batchId, postcode, deliveryDriver, orderStartTime);
+            orderId = app.getDatabaseHelper().createOrderInBatch(customerId, totalAmount, batchInfo.batchId, postcode,
+                    deliveryDriver, orderStartTime, discountCodeId);
         } catch (SQLException e) {
             e.printStackTrace();
             JOptionPane.showMessageDialog(this, "Failed to create order.", "Error", JOptionPane.ERROR_MESSAGE);
@@ -122,15 +144,22 @@ public class DeliveryPanel extends JPanel {
         if (orderId != -1) {
             app.getOrder().forEach(item -> app.getDatabaseHelper().insertOrderItem(orderId, item));
 
+            // Optionally, mark the discount code as used
+            if (appliedDiscountCode != null) {
+                app.getDatabaseHelper().markDiscountCodeAsUsed(appliedDiscountCode.getId());
+            }
+
             // Calculate estimated delivery time based on when the batch will be dispatched
             int estimatedDeliveryTime = calculateEstimatedDeliveryTime(batchInfo.batchId);
+
+            isOrderConfirmed = true; // Set the flag to prevent duplicate confirmations
+            submitPostcodeButton.setEnabled(false); // Disable the button to prevent further clicks
 
             app.navigateToOrderStatusPanel(deliveryDriver, estimatedDeliveryTime);
         } else {
             JOptionPane.showMessageDialog(this, "Failed to create order.", "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
-
     private int calculateEstimatedDeliveryTime(int batchId) {
         // Calculate the remaining time until the batch is dispatched
         int remainingTime = app.getDatabaseHelper().getRemainingTimeForBatch(batchId);
@@ -155,9 +184,13 @@ public class DeliveryPanel extends JPanel {
             }
         }).sum();
 
-        double discountValue = app.getCurrentDiscountValue();
-        if (discountValue > 0) {
-            totalAmount -= totalAmount * discountValue;
+        double percentageDiscountValue = app.getCurrentDiscountValue();
+        if (percentageDiscountValue > 0) {
+            totalAmount -= totalAmount * percentageDiscountValue;
+        }
+        double fixedDiscountAmount = app.getCurrentFixedDiscountAmount();
+        if (fixedDiscountAmount > 0) {
+            totalAmount -= fixedDiscountAmount;
         }
 
         // Include delivery cost if any
@@ -171,7 +204,7 @@ public class DeliveryPanel extends JPanel {
         if (app.getOrder().isEmpty()) {
             JOptionPane.showMessageDialog(this, "Your cart is empty!", "Cart", JOptionPane.INFORMATION_MESSAGE);
         } else {
-            cartPanel = new CartPanel(app);
+            cartPanel = new CartPanel(app, true);
             cartPanel.setVisible(true);
         }
     }
@@ -182,49 +215,84 @@ public class DeliveryPanel extends JPanel {
     }
 
     public void checkDiscount() {
-        String discount = discountField.getText().trim();
-        if (discount.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Please enter a discount code.", "Error", JOptionPane.WARNING_MESSAGE);
-            return;
+        String discountCode = discountField.getText().trim();
+        boolean discountApplied = false;
+        // Check for regular discount codes first
+        // Check for regular discount codes first
+        if (!discountCode.isEmpty() && isDiscount(discountCode)) {
+            JOptionPane.showMessageDialog(this, "Discount code applied successfully!", "Discount", JOptionPane.INFORMATION_MESSAGE);
+            discountApplied = true;
+        } else if (!discountCode.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Discount code not valid.", "Invalid Discount Code", JOptionPane.ERROR_MESSAGE);
         }
 
-        if (isDiscount(discount)) {
-            JOptionPane.showMessageDialog(this, "Discount applied successfully!", "Discount", JOptionPane.INFORMATION_MESSAGE);
-        } else {
-            JOptionPane.showMessageDialog(this, "Discount code not valid.", "Invalid discount code", JOptionPane.ERROR_MESSAGE);
+        // Check for birthday discount
+        String username = app.getCurrentUsername();
+        Optional<DatabaseHelper.CustomerBirthdayInfo> birthdayInfoOpt = app.getDatabaseHelper().getCustomerBirthdayInfo(username);
+        if (birthdayInfoOpt.isPresent()) {
+            DatabaseHelper.CustomerBirthdayInfo birthdayInfo = birthdayInfoOpt.get();
+            if (birthdayInfo.canUseBirthdayDiscount() && isTodayBirthday(birthdayInfo.getBirthdate())) {
+                double discountAmount = calculateBirthdayDiscount();
+                if (discountAmount > 0) {
+                    app.setCurrentFixedDiscountAmount(discountAmount);
+                    if (cartPanel != null) {
+                        cartPanel.applyFixedDiscount(discountAmount);
+                    }
+                    // Update canBirthday to false
+                    app.getDatabaseHelper().setCanBirthdayUsed(username);
+                    JOptionPane.showMessageDialog(this, "Happy Birthday! You have received a discount on one pizza and one drink.", "Birthday Discount", JOptionPane.INFORMATION_MESSAGE);
+                    discountApplied = true;
+                } else {
+                    JOptionPane.showMessageDialog(this, "No pizza or drink in your order to apply birthday discount.", "Birthday Discount", JOptionPane.INFORMATION_MESSAGE);
+                }
+            }
+        }
+        if (!discountApplied && discountCode.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No discount applied.", "Discount", JOptionPane.INFORMATION_MESSAGE);
         }
     }
 
     public boolean isDiscount(String discount) {
-        java.util.List<DiscountCode> discountCodes = app.getDatabaseHelper().getDiscountCodes();
+        List<DiscountCode> discountCodes = app.getDatabaseHelper().getDiscountCodes();
         for (DiscountCode dc : discountCodes) {
-            if (dc.getCode().equalsIgnoreCase(discount) && !dc.isUsed()) {
+            if (dc.getCode().equalsIgnoreCase(discount) && dc.isAvailable()) {
                 double discountValue = dc.getValue();
                 app.setCurrentDiscountValue(discountValue);
                 if (cartPanel != null) {
-                    cartPanel.applyDiscount(discountValue);
+                    cartPanel.applyPercentageDiscount(discountValue);
                 }
-                // Optionally, mark the discount code as used
-                // dc.setUsed(true);
+                appliedDiscountCode = dc; // Store the applied discount code
                 return true;
             }
         }
         return false;
     }
-
-    // Removed the orderQueue and related methods as they are no longer needed with the updated logic
-
-    private static class OrderQueueEntry {
-        private final int customerId;
-        private final double totalAmount;
-        private final int batchId;
-        private final String postcode;
-
-        public OrderQueueEntry(int customerId, double totalAmount, int batchId, String postcode) {
-            this.customerId = customerId;
-            this.totalAmount = totalAmount;
-            this.batchId = batchId;
-            this.postcode = postcode;
-        }
+    private boolean isTodayBirthday(Date birthdate) {
+        Calendar today = Calendar.getInstance();
+        Calendar birthday = Calendar.getInstance();
+        birthday.setTime(birthdate);
+        return today.get(Calendar.MONTH) == birthday.get(Calendar.MONTH) &&
+                today.get(Calendar.DAY_OF_MONTH) == birthday.get(Calendar.DAY_OF_MONTH);
     }
+    private double calculateBirthdayDiscount() {
+        double discountAmount = 0.0;
+        boolean pizzaFound = false;
+        boolean drinkFound = false;
+        for (CartItem item : app.getOrder()) {
+            if (item.getItemType() == CartItem.ItemType.PIZZA && !pizzaFound) {
+                double pizzaPrice = app.getDatabaseHelper().getPizzaPriceByName(item.getName());
+                discountAmount += pizzaPrice;
+                pizzaFound = true;
+            } else if (item.getItemType() == CartItem.ItemType.DRINK && !drinkFound) {
+                double drinkPrice = app.getDatabaseHelper().getDrinkPriceByName(item.getName());
+                discountAmount += drinkPrice;
+                drinkFound = true;
+            }
+            if (pizzaFound && drinkFound) {
+                break;
+            }
+        }
+        return discountAmount;
+    }
+
 }

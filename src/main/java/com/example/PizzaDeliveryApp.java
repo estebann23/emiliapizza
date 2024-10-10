@@ -14,7 +14,8 @@ public class PizzaDeliveryApp {
     private PizzaPanel pizzaPanel;
     private String currentUsername;
     private double currentDiscountValue = 0.0;
-    private DatabaseHelper databaseHelper; // Added instance variable
+    private DatabaseHelper databaseHelper;
+    private double currentFixedDiscountAmount = 0.0;// Added instance variable
 
     public PizzaDeliveryApp() {
         panelHistory = new Stack<>();
@@ -88,7 +89,7 @@ public class PizzaDeliveryApp {
     }
 
     public void showCart() {
-        CartPanel cartPanel = new CartPanel(this);
+        CartPanel cartPanel = new CartPanel(this, false);
         cartPanel.setVisible(true);
     }
 
@@ -170,6 +171,10 @@ public class PizzaDeliveryApp {
 
         navigateTo(PanelNames.LOGIN_PANEL);
         panelHistory.clear();
+    }
+    public void setCurrentFixedDiscountAmount(double amount) { this.currentFixedDiscountAmount = amount;
+    }
+    public double getCurrentFixedDiscountAmount() { return this.currentFixedDiscountAmount;
     }
 
     // Getter for DatabaseHelper

@@ -7,6 +7,7 @@ import javax.swing.Timer;
 import java.sql.*;
 import java.util.*;
 import java.util.UUID;
+import java.util.Date;
 
 public class DatabaseHelper {
 
@@ -15,7 +16,7 @@ public class DatabaseHelper {
     private static final String USER = "root";
     private static final String PASS = "02072005";
     private static int currentOrderId = -1;
-    private Map<Integer, Timer> batchTimers = new HashMap<>();
+    private final Map<Integer, Timer> batchTimers = Collections.synchronizedMap(new HashMap<>());
 
     // Constructor to initialize the DatabaseHelper with the app instance
     public DatabaseHelper(PizzaDeliveryApp app) {
@@ -160,7 +161,6 @@ public class DatabaseHelper {
             e.printStackTrace();
         }
     }
-
     public static int getCurrentOrderId() {
         return currentOrderId;
     }
@@ -359,8 +359,9 @@ public class DatabaseHelper {
     }
 
     public static List<DiscountCode> getDiscountCodes() {
-        String query = "SELECT DiscountCode, Discount_Value, DiscountCode_isAvailable FROM discountcodes";
+        String query = "SELECT DiscountCode_ID, DiscountCode, Discount_Value, DiscountCode_isAvailable FROM discountcodes";
         return executeSelectQuery(query, rs -> new DiscountCode(
+                rs.getInt("DiscountCode_ID"),
                 rs.getString("DiscountCode"),
                 rs.getDouble("Discount_Value"),
                 rs.getBoolean("DiscountCode_isAvailable")
@@ -530,6 +531,7 @@ public class DatabaseHelper {
             JOptionPane.showMessageDialog(null, "No available drivers at the moment. Please try again later.", "Driver Unavailable", JOptionPane.WARNING_MESSAGE);
             return null;
         }
+        markDriverUnavailable(driverName); // Mark driver as unavailable
         String insertSQL = "INSERT INTO batches (Batch_ID, Created_At, DeliveryDriver_Name, Postcode, IsDispatched) VALUES (?, ?, ?, ?, 0)";
         executeUpdate(insertSQL, batchId, batchCreatedAt, driverName, postcode);
 
@@ -538,7 +540,6 @@ public class DatabaseHelper {
 
         return new BatchInfo(batchId, driverName, postcode);
     }
-
     public int getRemainingTimeForBatch(int batchId) {
         String query = "SELECT TIMESTAMPDIFF(SECOND, NOW(), DATE_ADD(Created_At, INTERVAL 3 MINUTE)) AS remaining_time " +
                 "FROM batches WHERE Batch_ID = ?";
@@ -588,26 +589,53 @@ public class DatabaseHelper {
         String query = "SELECT DeliveryDriver_Name FROM deliverydrivers WHERE isAvailable = 1 LIMIT 1";
         return executeQueryForSingleResult(query, rs -> rs.getString("DeliveryDriver_Name")).orElse(null);
     }
-
-    public int createOrderInBatch(int customerId, double totalAmount, int batchId, String postcode, String deliveryDriver, Timestamp orderStartTime) throws SQLException {
+    public int createOrderInBatch(int customerId, double totalAmount, int batchId, String postcode,
+                                  String deliveryDriver, Timestamp orderStartTime, int discountCodeId) throws SQLException {
         int orderId = generateUniqueOrderId();
-        String insertOrderSQL = "INSERT INTO orders (Order_ID, Customer_ID, Total_Amount, Batch_ID, Postcode, DeliveryDriver_ID, Order_Status, Order_Date, Order_StartTime) " +
-                "VALUES (?, ?, ?, ?, ?, (SELECT DeliveryDriver_ID FROM deliverydrivers WHERE DeliveryDriver_Name = ?), 'Order Confirmed', NOW(), ?)";
-        executeUpdate(insertOrderSQL, orderId, customerId, totalAmount, batchId, postcode, deliveryDriver, orderStartTime);
 
-        // After inserting the order, check if batch is full
+        String insertOrderSQL = "INSERT INTO orders (Order_ID, Customer_ID, Total_Amount, Batch_ID, Postcode, "
+                + "DeliveryDriver_ID, Order_Status, Order_Date, Order_StartTime, DiscountCode_ID) "
+                + "VALUES (?, ?, ?, ?, ?, (SELECT DeliveryDriver_ID FROM deliverydrivers WHERE DeliveryDriver_Name = ?), ?, NOW(), ?, ?)";
+
+        // Use 'setNull' for DiscountCode_ID if it's -1
+        try (Connection conn = getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(insertOrderSQL)) {
+            pstmt.setInt(1, orderId);
+            pstmt.setInt(2, customerId);
+            pstmt.setDouble(3, totalAmount);
+            pstmt.setInt(4, batchId);
+            pstmt.setString(5, postcode);
+            pstmt.setString(6, deliveryDriver);
+            pstmt.setString(7, "Order Confirmed");
+            pstmt.setTimestamp(8, orderStartTime);
+            if (discountCodeId != -1) {
+                pstmt.setInt(9, discountCodeId);
+            } else {
+                pstmt.setNull(9, Types.INTEGER);
+            }
+            pstmt.executeUpdate();
+        }
+
+        // Set the currentOrderId after successfully creating the order
+        setCurrentOrderId(orderId);
+
+        // After inserting the order, check if the batch is full
         if (isBatchFull(batchId)) {
-            // Cancel the batch timer if it's still running
             Timer timer = batchTimers.get(batchId);
             if (timer != null) {
                 timer.stop();
                 batchTimers.remove(batchId);
             }
-            // Dispatch the batch immediately
             dispatchBatch(batchId, deliveryDriver);
         }
         return orderId;
     }
+
+    public void markDiscountCodeAsUsed(int discountCodeId) throws SQLException {
+        String query = "UPDATE discountcodes SET DiscountCode_isAvailable = 0 WHERE DiscountCode_ID = ?";
+        executeUpdate(query, discountCodeId);
+    }
+
 
     public boolean isBatchFull(int batchId) {
         int pizzaCount = getPizzaCountInBatch(batchId);
@@ -618,4 +646,45 @@ public class DatabaseHelper {
         String query = "SELECT COUNT(*) FROM orders WHERE Batch_ID = ?";
         return executeQueryForSingleResult(query, rs -> rs.getInt(1), batchId).orElse(0);
     }
+    public Optional<CustomerBirthdayInfo> getCustomerBirthdayInfo(String username) {
+        String query = "SELECT Birthdate, canBirthday FROM Customers WHERE username = ?";
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+            pstmt.setString(1, username);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                Date birthdate = rs.getDate("Birthdate");
+                boolean canBirthday = rs.getBoolean("canBirthday");
+                return Optional.of(new CustomerBirthdayInfo(birthdate, canBirthday));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return Optional.empty();
+    }
+    public void setCanBirthdayUsed(String username) {
+        String updateSQL = "UPDATE Customers SET canBirthday = false WHERE Username = ?";
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(updateSQL)) {
+            pstmt.setString(1, username);
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+    public static class CustomerBirthdayInfo {
+        private final Date birthdate;
+        private final boolean canBirthday;
+        public CustomerBirthdayInfo(Date birthdate, boolean canBirthday) {
+            this.birthdate = birthdate;
+            this.canBirthday = canBirthday;
+        }
+        public Date getBirthdate() {
+            return birthdate;
+        }
+        public boolean canUseBirthdayDiscount() {
+            return canBirthday;
+        }
+    }
 }
+

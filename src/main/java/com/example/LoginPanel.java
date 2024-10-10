@@ -44,7 +44,7 @@ public class LoginPanel extends JPanel {
             boolean authenticated = app.getDatabaseHelper().authenticateUser(usernameField.getText(),
                     new String(passwordField.getPassword()));
             if (authenticated) {
-                if (usernameField.getText().equalsIgnoreCase("bas")) {
+                if (usernameField.getText().equalsIgnoreCase("B")) {
                     app.navigateTo(PanelNames.EARNINGS_PANEL);
                 } else {
                     app.setCurrentUsername(usernameField.getText());
