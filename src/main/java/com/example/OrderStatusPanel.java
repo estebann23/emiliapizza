@@ -24,7 +24,7 @@ public class OrderStatusPanel extends JPanel {
         this.countdownSeconds = countdownTime;
         initialize();
         startCountdown(countdownTime);
-        startStatusUpdate(); // Start status updates
+        startStatusUpdate();
     }
 
     private void initialize() {
@@ -142,20 +142,16 @@ public class OrderStatusPanel extends JPanel {
             int spacing = (width - 2 * circleRadius) / (statuses.length - 1);
             int y = getHeight() / 2;
 
-            // Draw the line connecting the circles
             g2d.setColor(Color.LIGHT_GRAY);
             g2d.setStroke(new BasicStroke(3));
             g2d.drawLine(circleRadius, y, width - circleRadius, y);
 
-            // Draw the circles and labels
             for (int i = 0; i < statuses.length; i++) {
                 int x = circleRadius + i * spacing;
 
-                // Set the color for the circle based on the current status index
                 g2d.setColor(i <= currentStatusIndex ? Color.BLUE : Color.LIGHT_GRAY);
                 g2d.fillOval(x - circleRadius, y - circleRadius, 2 * circleRadius, 2 * circleRadius);
 
-                // Draw the status label below each circle
                 g2d.setColor(Color.BLACK);
                 String statusLabel = statuses[i];
                 FontMetrics fm = g2d.getFontMetrics();

@@ -11,9 +11,9 @@ import java.util.TimerTask;
 
 public class RestaurantMonitoring {
 
-    private static final String DB_URL = "jdbc:mysql://localhost:3306/pizzare"; // Update to your actual database name
+    private static final String DB_URL = "jdbc:mysql://localhost:3306/pizzare";
     private static final String USER = "root";
-    private static final String PASS = "02072005"; // Update with your database password
+    private static final String PASS = "02072005";
 
     private static JLabel timeLabel;
     private static DefaultTableModel model;
@@ -26,9 +26,8 @@ public class RestaurantMonitoring {
     private static void createAndShowGUI() {
         JFrame frame = new JFrame("Restaurant Monitoring");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(1200, 550); // Increased width to accommodate additional column
+        frame.setSize(1200, 550);
 
-        // Create a panel to hold the time label at the top
         JPanel topPanel = new JPanel(new BorderLayout());
         timeLabel = new JLabel();
         timeLabel.setFont(new Font("Arial", Font.BOLD, 16));
@@ -46,13 +45,10 @@ public class RestaurantMonitoring {
 
         frame.setVisible(true);
 
-        // Load data from the database initially
         loadData();
 
-        // Start the timer to update the time every second
         startClock();
 
-        // Start the timer to refresh the data every second
         startDataRefresh();
     }
 
@@ -61,14 +57,11 @@ public class RestaurantMonitoring {
         TimerTask updateClock = new TimerTask() {
             @Override
             public void run() {
-                // Get the current time and format it
                 LocalTime now = LocalTime.now();
                 String currentTime = now.format(DateTimeFormatter.ofPattern("HH:mm:ss"));
-                // Update the time label
                 timeLabel.setText("Current Time: " + currentTime);
             }
         };
-        // Schedule the task to run every 1000 milliseconds (1 second)
         timer.scheduleAtFixedRate(updateClock, 0, 1000);
     }
 
@@ -77,21 +70,17 @@ public class RestaurantMonitoring {
         TimerTask refreshDataTask = new TimerTask() {
             @Override
             public void run() {
-                // Reload data from the database
                 SwingUtilities.invokeLater(RestaurantMonitoring::loadData);
             }
         };
-        // Schedule the task to run every 1000 milliseconds (1 second)
         dataRefreshTimer.scheduleAtFixedRate(refreshDataTask, 0, 100);
     }
 
     private static void loadData() {
-        // Clear existing data in the table
         model.setRowCount(0);
 
         try (Connection connection = DriverManager.getConnection(DB_URL, USER, PASS)) {
 
-            // Get the current time and format it for SQL as HH:mm:ss
             LocalTime now = LocalTime.now();
             String currentTime = now.format(DateTimeFormatter.ofPattern("HH:mm:ss"));
 

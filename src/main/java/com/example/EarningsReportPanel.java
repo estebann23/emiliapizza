@@ -110,7 +110,6 @@ public class EarningsReportPanel extends JPanel {
             return;
         }
 
-        // Get selected month and year
         String selectedMonth = monthComboBox.getSelectedItem().toString();
         int month = 0; // 0 indicates all months
         if (!selectedMonth.equals("All Months")) {
@@ -119,7 +118,6 @@ public class EarningsReportPanel extends JPanel {
 
         int year = Integer.parseInt(yearComboBox.getSelectedItem().toString());
 
-        // Clear previous data
         tableModel.setRowCount(0);
         double totalEarnings = 0.0;
 

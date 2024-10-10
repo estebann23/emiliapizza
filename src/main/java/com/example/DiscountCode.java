@@ -14,7 +14,6 @@ public class DiscountCode {
         this.isAvailable = isAvailable;
     }
 
-    // Getter methods
     public int getId() {
         return id;
     }

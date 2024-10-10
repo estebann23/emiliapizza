@@ -137,7 +137,6 @@ public class CartPanel extends JDialog {
         if (discountValue > 0) {
             discountedTotal = totalAmount - (totalAmount * discountValue);
         }
-        // Apply birthday discount
         fixedDiscountAmount = app.getCurrentFixedDiscountAmount();
         if (fixedDiscountAmount > 0) {
             discountedTotal -= fixedDiscountAmount;

@@ -66,7 +66,6 @@ public class PizzaDeliveryApp {
     }
 
     public void navigateToOrderStatusPanel(String deliveryDriver, int countdownTime) {
-        // Check if an OrderStatusPanel already exists in the main panel
         OrderStatusPanel orderStatusPanel = null;
         for (Component comp : mainPanel.getComponents()) {
             if (comp instanceof OrderStatusPanel) {
@@ -75,16 +74,13 @@ public class PizzaDeliveryApp {
             }
         }
 
-        // If it doesn't exist, create a new one
         if (orderStatusPanel == null) {
             orderStatusPanel = new OrderStatusPanel(this, deliveryDriver, countdownTime);
             mainPanel.add(orderStatusPanel, "OrderStatusPanel");
         } else {
-            // Update the existing panel with new driver info and countdown
             orderStatusPanel = new OrderStatusPanel(this, deliveryDriver, countdownTime);
         }
 
-        // Show the OrderStatusPanel
         cardLayout.show(mainPanel, "OrderStatusPanel");
     }
 
@@ -177,7 +173,6 @@ public class PizzaDeliveryApp {
     public double getCurrentFixedDiscountAmount() { return this.currentFixedDiscountAmount;
     }
 
-    // Getter for DatabaseHelper
     public DatabaseHelper getDatabaseHelper() {
         return databaseHelper;
     }

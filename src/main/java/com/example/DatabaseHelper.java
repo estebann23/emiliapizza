@@ -18,7 +18,6 @@ public class DatabaseHelper {
     private static int currentOrderId = -1;
     private final Map<Integer, Timer> batchTimers = Collections.synchronizedMap(new HashMap<>());
 
-    // Constructor to initialize the DatabaseHelper with the app instance
     public DatabaseHelper(PizzaDeliveryApp app) {
         DatabaseHelper.app = app;
     }
@@ -27,27 +26,24 @@ public class DatabaseHelper {
         app = appInstance;
     }
 
-    // Generates a unique customer ID
     public static String generateCustomerID() {
         return UUID.randomUUID().toString();
     }
 
     public static void markDriverUnavailable(String driverName) {
         updateDriverAvailability(driverName, false);
-        scheduleDriverAvailabilityUpdate(driverName, 30 * 60 * 1000); // 30 minutes
+        scheduleDriverAvailabilityUpdate(driverName, 30 * 60 * 1000);
     }
 
     public static void markDriverAvailable(String driverName) {
         updateDriverAvailability(driverName, true);
     }
 
-    // Private helper for updating driver availability
     private static void updateDriverAvailability(String driverName, boolean isAvailable) {
         String updateSQL = "UPDATE deliverydrivers SET isAvailable = ? WHERE DeliveryDriver_Name = ?";
         executeUpdate(updateSQL, isAvailable ? 1 : 0, driverName);
     }
 
-    // Schedule a future task to mark a driver as available
     private static void scheduleDriverAvailabilityUpdate(String driverName, int delayMillis) {
         Timer timer = new Timer(delayMillis, e -> markDriverAvailable(driverName));
         timer.setRepeats(false);
@@ -63,12 +59,10 @@ public class DatabaseHelper {
         return executeQueryForSingleResult(query, rs -> rs.getDouble("price"), name);
     }
 
-    // Centralized method for creating a new connection
     private static Connection getConnection() throws SQLException {
         return DriverManager.getConnection(DB_URL, USER, PASS);
     }
 
-    // General utility method to execute updates
     private static void executeUpdate(String query, Object... params) {
         try (Connection conn = getConnection();
              PreparedStatement pstmt = conn.prepareStatement(query)) {
@@ -79,7 +73,6 @@ public class DatabaseHelper {
         }
     }
 
-    // Utility for executing a query that returns a single result
     private static <T> Optional<T> executeQueryForSingleResult(String query, ResultSetExtractor<T> extractor, Object... params) {
         try (Connection conn = getConnection();
              PreparedStatement pstmt = conn.prepareStatement(query)) {
@@ -94,14 +87,12 @@ public class DatabaseHelper {
         return Optional.empty();
     }
 
-    // Method to set parameters for a PreparedStatement
     private static void setParameters(PreparedStatement pstmt, Object... params) throws SQLException {
         for (int i = 0; i < params.length; i++) {
             pstmt.setObject(i + 1, params[i]);
         }
     }
 
-    // Interface for extracting a result from a ResultSet
     @FunctionalInterface
     private interface ResultSetExtractor<T> {
         T extract(ResultSet rs) throws SQLException;
@@ -161,6 +152,7 @@ public class DatabaseHelper {
             e.printStackTrace();
         }
     }
+
     public static int getCurrentOrderId() {
         return currentOrderId;
     }
@@ -309,12 +301,11 @@ public class DatabaseHelper {
             while (rs.next()) {
                 totalIngredientCost += rs.getDouble("topping_price");
             }
-            // Calculate the final price
             return PizzaPriceCalculator.calculateFinalPrice(totalIngredientCost);
         } catch (SQLException e) {
             e.printStackTrace();
         }
-        return -1; // Return -1 if an error occurs
+        return -1;
     }
 
     public static void updatePizzaPricesForAll() {
@@ -331,26 +322,22 @@ public class DatabaseHelper {
              PreparedStatement updateStmt = conn.prepareStatement(updatePizzaPriceQuery);
              ResultSet pizzaRs = selectPizzaStmt.executeQuery()) {
 
-            // Loop through all pizzas
             while (pizzaRs.next()) {
                 int pizzaId = pizzaRs.getInt("pizza_id");
 
-                // Fetch the total ingredient cost for the current pizza
                 selectCostStmt.setInt(1, pizzaId);
                 ResultSet costRs = selectCostStmt.executeQuery();
 
                 if (costRs.next()) {
                     double ingredientCost = costRs.getDouble("total_ingredient_cost");
 
-                    // Calculate the final pizza price using the PizzaPriceCalculator
                     double finalPrice = PizzaPriceCalculator.calculateFinalPrice(ingredientCost);
 
-                    // Update the pizza's price in the database
                     updateStmt.setDouble(1, finalPrice);
                     updateStmt.setInt(2, pizzaId);
                     updateStmt.executeUpdate();
                 }
-                costRs.close(); // Close the cost result set after processing each pizza
+                costRs.close();
             }
 
         } catch (SQLException e) {
@@ -368,7 +355,6 @@ public class DatabaseHelper {
         ));
     }
 
-    // Helper method for querying the Items Selection from the DB
     private static <T> ArrayList<T> executeSelectQuery(String query, ResultSetExtractor<T> extractor) {
         ArrayList<T> resultList = new ArrayList<>();
         try (Connection conn = getConnection();
@@ -391,21 +377,17 @@ public class DatabaseHelper {
         try (Connection conn = getConnection();
              PreparedStatement pstmt = conn.prepareStatement(query)) {
 
-            // Loop until a unique ID is found
             do {
-                // Generate a random number as the unique ID
-                uniqueID = (int) (Math.random() * 1000); // Adjust the range as needed
+                uniqueID = (int) (Math.random() * 1000);
 
-                // Check if the generated ID already exists in the database
                 pstmt.setInt(1, uniqueID);
                 ResultSet rs = pstmt.executeQuery();
                 if (rs.next()) {
                     int count = rs.getInt(1);
-                    // If count is 0, then the ID is unique
                     isUnique = (count == 0);
                 }
                 rs.close();
-            } while (!isUnique); // Repeat until a unique ID is found
+            } while (!isUnique);
 
         } catch (SQLException e) {
             e.printStackTrace();
@@ -434,7 +416,7 @@ public class DatabaseHelper {
         Connection conn = null;
         try {
             conn = getConnection();
-            conn.setAutoCommit(false); // Start transaction
+            conn.setAutoCommit(false);
             PreparedStatement pstmt = conn.prepareStatement(insertItemSQL);
 
             int customerId = getCustomerIdByUsername(app.getCurrentUsername());
@@ -443,39 +425,38 @@ public class DatabaseHelper {
             pstmt.setInt(2, orderId);
             pstmt.setInt(3, customerId);
 
-            // Handle different item types
             switch (item.getItemType()) {
                 case PIZZA:
                     int pizzaId = getPizzaIdByName(item.getName());
-                    pstmt.setInt(4, pizzaId); // Pizza_ID
-                    pstmt.setNull(5, Types.INTEGER); // Dessert_ID
-                    pstmt.setNull(6, Types.INTEGER); // Drink_ID
-                    pstmt.setInt(7, item.getQuantity()); // Pizza_Quantity for pizzas
+                    pstmt.setInt(4, pizzaId);
+                    pstmt.setNull(5, Types.INTEGER);
+                    pstmt.setNull(6, Types.INTEGER);
+                    pstmt.setInt(7, item.getQuantity());
                     break;
                 case DESSERT:
                     int dessertId = getDessertIdByName(item.getName());
-                    pstmt.setNull(4, Types.INTEGER); // Pizza_ID
-                    pstmt.setInt(5, dessertId); // Dessert_ID
-                    pstmt.setNull(6, Types.INTEGER); // Drink_ID
-                    pstmt.setNull(7, Types.INTEGER); // Pizza_Quantity set to null for non-pizza items
+                    pstmt.setNull(4, Types.INTEGER);
+                    pstmt.setInt(5, dessertId);
+                    pstmt.setNull(6, Types.INTEGER);
+                    pstmt.setNull(7, Types.INTEGER);
                     break;
                 case DRINK:
                     int drinkId = getDrinkIdByName(item.getName());
-                    pstmt.setNull(4, Types.INTEGER); // Pizza_ID
-                    pstmt.setNull(5, Types.INTEGER); // Dessert_ID
-                    pstmt.setInt(6, drinkId); // Drink_ID
-                    pstmt.setNull(7, Types.INTEGER); // Pizza_Quantity set to null for non-pizza items
+                    pstmt.setNull(4, Types.INTEGER);
+                    pstmt.setNull(5, Types.INTEGER);
+                    pstmt.setInt(6, drinkId);
+                    pstmt.setNull(7, Types.INTEGER);
                     break;
                 default:
                     throw new IllegalArgumentException("Unknown item type: " + item.getItemType());
             }
 
             pstmt.executeUpdate();
-            conn.commit(); // Commit transaction
+            conn.commit();
 
         } catch (SQLException e) {
             e.printStackTrace();
-            // Rollback on failure
+
             try {
                 if (conn != null && !conn.isClosed()) {
                     conn.rollback();
@@ -484,10 +465,9 @@ public class DatabaseHelper {
                 rollbackEx.printStackTrace();
             }
         } finally {
-            // Ensure the connection is closed
             if (conn != null) {
                 try {
-                    conn.setAutoCommit(true); // Reset auto-commit
+                    conn.setAutoCommit(true);
                     conn.close();
                 } catch (SQLException e) {
                     e.printStackTrace();
@@ -506,8 +486,6 @@ public class DatabaseHelper {
         ), customer_id).orElse(null);
     }
 
-    // Methods related to batches and orders
-
     public BatchInfo getOrCreateBatchForOrder(Timestamp orderStartTime, String postcode) {
         BatchInfo batchInfo = getExistingBatchForTimeWindow(orderStartTime, postcode);
         if (batchInfo == null) {
@@ -515,10 +493,11 @@ public class DatabaseHelper {
         }
         return batchInfo;
     }
+
     public BatchInfo getExistingBatchForTimeWindow(Timestamp orderStartTime, String postcode) {
         String query = "SELECT b.Batch_ID, b.DeliveryDriver_Name " +
                 "FROM batches b " +
-                "WHERE b.Postcode = ? AND ABS(TIMESTAMPDIFF(SECOND, b.Created_At, ?)) <= 180 " + // 3 minutes window
+                "WHERE b.Postcode = ? AND ABS(TIMESTAMPDIFF(SECOND, b.Created_At, ?)) <= 180 " +
                 "AND b.IsDispatched = 0 " +
                 "LIMIT 1";
         return executeQueryForSingleResult(query, rs -> new BatchInfo(rs.getInt("Batch_ID"), rs.getString("DeliveryDriver_Name"), postcode), postcode, orderStartTime).orElse(null);
@@ -531,21 +510,20 @@ public class DatabaseHelper {
             JOptionPane.showMessageDialog(null, "No available drivers at the moment. Please try again later.", "Driver Unavailable", JOptionPane.WARNING_MESSAGE);
             return null;
         }
-        markDriverUnavailable(driverName); // Mark driver as unavailable
+        markDriverUnavailable(driverName);
         String insertSQL = "INSERT INTO batches (Batch_ID, Created_At, DeliveryDriver_Name, Postcode, IsDispatched) VALUES (?, ?, ?, ?, 0)";
         executeUpdate(insertSQL, batchId, batchCreatedAt, driverName, postcode);
 
-        // Start the 3-minute timer for this batch
         startBatchTimer(batchId, driverName);
 
         return new BatchInfo(batchId, driverName, postcode);
     }
+
     public int getRemainingTimeForBatch(int batchId) {
         String query = "SELECT TIMESTAMPDIFF(SECOND, NOW(), DATE_ADD(Created_At, INTERVAL 3 MINUTE)) AS remaining_time " +
                 "FROM batches WHERE Batch_ID = ?";
         return executeQueryForSingleResult(query, rs -> rs.getInt("remaining_time"), batchId).orElse(0);
     }
-
 
     private void startBatchTimer(int batchId, String driverName) {
         Timer timer = new Timer(3 * 60 * 1000, e -> {
@@ -555,17 +533,16 @@ public class DatabaseHelper {
         timer.start();
         batchTimers.put(batchId, timer);
     }
+
     private void dispatchBatch(int batchId, String driverName) {
-        // Mark batch as dispatched
         String updateBatchSQL = "UPDATE batches SET IsDispatched = 1 WHERE Batch_ID = ?";
         executeUpdate(updateBatchSQL, batchId);
 
-        // Mark driver as unavailable
         markDriverUnavailable(driverName);
 
-        // Remove the timer from the map
         batchTimers.remove(batchId);
     }
+
     public String getAvailableDriver() {
         String query = "SELECT DeliveryDriver_Name FROM deliverydrivers WHERE isAvailable = 1 LIMIT 1";
         return executeQueryForSingleResult(query, rs -> rs.getString("DeliveryDriver_Name")).orElse(null);
@@ -589,6 +566,7 @@ public class DatabaseHelper {
         String query = "SELECT DeliveryDriver_Name FROM deliverydrivers WHERE isAvailable = 1 LIMIT 1";
         return executeQueryForSingleResult(query, rs -> rs.getString("DeliveryDriver_Name")).orElse(null);
     }
+
     public int createOrderInBatch(int customerId, double totalAmount, int batchId, String postcode,
                                   String deliveryDriver, Timestamp orderStartTime, int discountCodeId) throws SQLException {
         int orderId = generateUniqueOrderId();
@@ -597,7 +575,6 @@ public class DatabaseHelper {
                 + "DeliveryDriver_ID, Order_Status, Order_Date, Order_StartTime, DiscountCode_ID) "
                 + "VALUES (?, ?, ?, ?, ?, (SELECT DeliveryDriver_ID FROM deliverydrivers WHERE DeliveryDriver_Name = ?), ?, NOW(), ?, ?)";
 
-        // Use 'setNull' for DiscountCode_ID if it's -1
         try (Connection conn = getConnection();
              PreparedStatement pstmt = conn.prepareStatement(insertOrderSQL)) {
             pstmt.setInt(1, orderId);
@@ -616,10 +593,8 @@ public class DatabaseHelper {
             pstmt.executeUpdate();
         }
 
-        // Set the currentOrderId after successfully creating the order
         setCurrentOrderId(orderId);
 
-        // After inserting the order, check if the batch is full
         if (isBatchFull(batchId)) {
             Timer timer = batchTimers.get(batchId);
             if (timer != null) {
@@ -636,7 +611,6 @@ public class DatabaseHelper {
         executeUpdate(query, discountCodeId);
     }
 
-
     public boolean isBatchFull(int batchId) {
         int pizzaCount = getPizzaCountInBatch(batchId);
         return pizzaCount >= 3;
@@ -646,6 +620,7 @@ public class DatabaseHelper {
         String query = "SELECT COUNT(*) FROM orders WHERE Batch_ID = ?";
         return executeQueryForSingleResult(query, rs -> rs.getInt(1), batchId).orElse(0);
     }
+
     public Optional<CustomerBirthdayInfo> getCustomerBirthdayInfo(String username) {
         String query = "SELECT Birthdate, canBirthday FROM Customers WHERE username = ?";
         try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
@@ -662,6 +637,7 @@ public class DatabaseHelper {
         }
         return Optional.empty();
     }
+
     public void setCanBirthdayUsed(String username) {
         String updateSQL = "UPDATE Customers SET canBirthday = false WHERE Username = ?";
         try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
@@ -672,19 +648,22 @@ public class DatabaseHelper {
             e.printStackTrace();
         }
     }
+
     public static class CustomerBirthdayInfo {
         private final Date birthdate;
         private final boolean canBirthday;
+
         public CustomerBirthdayInfo(Date birthdate, boolean canBirthday) {
             this.birthdate = birthdate;
             this.canBirthday = canBirthday;
         }
+
         public Date getBirthdate() {
             return birthdate;
         }
+
         public boolean canUseBirthdayDiscount() {
             return canBirthday;
         }
     }
 }
-

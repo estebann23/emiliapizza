@@ -44,12 +44,11 @@ public class LoginPanel extends JPanel {
             boolean authenticated = app.getDatabaseHelper().authenticateUser(usernameField.getText(),
                     new String(passwordField.getPassword()));
             if (authenticated) {
-                if (usernameField.getText().equalsIgnoreCase("B")) {
+                if (usernameField.getText().equalsIgnoreCase("admin")) {
                     app.navigateTo(PanelNames.EARNINGS_PANEL);
                 } else {
                     app.setCurrentUsername(usernameField.getText());
-                    int customerId = app.getCustomerIdByUsername(usernameField.getText());
-                    app.getDatabaseHelper().createNewOrder(customerId);
+
                     app.navigateTo(PanelNames.PIZZAS_PANEL);
                 }
             } else {
