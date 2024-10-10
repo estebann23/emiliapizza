@@ -4,9 +4,7 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableCellRenderer;
-import javax.swing.table.TableCellEditor;
 import java.awt.*;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
@@ -22,14 +20,17 @@ public class CartPanel extends JDialog {
 
     private final HashMap<CartItem, Integer> orderMap;
     private DefaultTableModel tableModel;
+    private boolean includeDeliveryCost;
 
-    public CartPanel(PizzaDeliveryApp app) {
+
+    public CartPanel(PizzaDeliveryApp app, boolean includeDeliveryCost) {
         super(app.getFrame(), "Your Cart", true);
         this.app = app;
         this.totalLabel = new JLabel("Total Amount: $0.00");
         this.discountedTotalLabel = new JLabel();
         this.orderMap = new HashMap<>();
         this.cartTable = new JTable();
+        this.includeDeliveryCost = includeDeliveryCost;
         initialize();
     }
 
@@ -146,8 +147,13 @@ public class CartPanel extends JDialog {
 
         double finalTotalWithDiscount = discountedTotal + DELIVERY_COST;
 
-        totalLabel.setText("Total: $" + String.format("%.2f", totalAmount) + " + $"
-                + String.format("%.2f", DELIVERY_COST) + " (del.) = $" + String.format("%.2f", finalTotal));
+        if (includeDeliveryCost) {
+            totalLabel.setText("Total: $" + String.format("%.2f", totalAmount) + " + $"
+                    + String.format("%.2f", DELIVERY_COST) + " (del.) = $" + String.format("%.2f", finalTotal));
+        } else {
+            totalLabel.setText("Total: $" + String.format("%.2f", totalAmount));
+        }
+
 
         if (discountValue > 0 || fixedDiscountAmount > 0) {
             StringBuilder discountText = new StringBuilder("Total after discount: $");

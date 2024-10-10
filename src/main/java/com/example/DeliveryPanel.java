@@ -178,8 +178,6 @@ public class DeliveryPanel extends JPanel {
         // Include delivery cost if any
         double deliveryCost = 3.50; // Example delivery cost
         totalAmount += deliveryCost;
-        totalAmount = Math.max(0, totalAmount);
-
 
         return totalAmount;
     }
@@ -188,7 +186,7 @@ public class DeliveryPanel extends JPanel {
         if (app.getOrder().isEmpty()) {
             JOptionPane.showMessageDialog(this, "Your cart is empty!", "Cart", JOptionPane.INFORMATION_MESSAGE);
         } else {
-            cartPanel = new CartPanel(app);
+            cartPanel = new CartPanel(app, true);
             cartPanel.setVisible(true);
         }
     }
@@ -286,7 +284,6 @@ public class DeliveryPanel extends JPanel {
         }
         return discountAmount;
     }
-
 
     // Removed the orderQueue and related methods as they are no longer needed with the updated logic
 

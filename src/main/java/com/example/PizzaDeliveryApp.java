@@ -90,7 +90,7 @@ public class PizzaDeliveryApp {
     }
 
     public void showCart() {
-        CartPanel cartPanel = new CartPanel(this);
+        CartPanel cartPanel = new CartPanel(this, false);
         cartPanel.setVisible(true);
     }
 
