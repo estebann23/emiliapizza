@@ -31,6 +31,17 @@ public class CartPanel extends JDialog {
         initialize();
     }
 
+    public int getPizzaQuantityInCart() {
+        int pizzaQuantity = 0;
+        for (CartItem item : orderMap.keySet()) {
+            if (item.getItemType() == CartItem.ItemType.PIZZA) {
+                pizzaQuantity += orderMap.get(item);
+            }
+        }
+        return pizzaQuantity;
+
+    }
+
     private void initialize() {
         setLayout(new BorderLayout(10, 10));
         setPreferredSize(new Dimension(500, 400));
@@ -177,6 +188,7 @@ public class CartPanel extends JDialog {
             isPushed = true;
             return button;
         }
+
 
         @Override
         public Object getCellEditorValue() {
