@@ -11,9 +11,9 @@ import java.util.UUID;
 
 public class DatabaseHelper {
     private static PizzaDeliveryApp app;
-    private static final String DB_URL = "jdbc:mysql://localhost:3306/pizzare";
+    private static final String DB_URL = "jdbc:mysql://localhost:3306/PIZZARE";
     private static final String USER = "root";
-    private static final String PASS = "mysql2311";
+    private static final String PASS = "02072005";
     private static int currentOrderId = -1;
     private static Connection conn;
 
@@ -94,7 +94,6 @@ public class DatabaseHelper {
         }
         return uniqueId;
     }
-
     public static void setCurrentOrderId(int orderId) {
         currentOrderId = orderId;
     }
@@ -188,7 +187,6 @@ public class DatabaseHelper {
                     return false;
                 }
             }
-
             // Generate a new Customer_ID (max customer_id + 1)
             int newCustomerId = 1;
             try (PreparedStatement getMaxCustomerIdStmt = conn.prepareStatement(getMaxCustomerIdSQL)) {
@@ -198,9 +196,10 @@ public class DatabaseHelper {
                 }
             }
 
-            String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
 
-            // Insert new customer with the unique Customer_ID
+            String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
+            String customerId = generateCustomerID();
+
             try (PreparedStatement pstmt = conn.prepareStatement(insertSQL)) {
                 pstmt.setInt(1, newCustomerId);
                 pstmt.setString(2, name);
@@ -218,6 +217,7 @@ public class DatabaseHelper {
             return false;
         }
     }
+
 
     // Authenticates a user during login
     public static boolean authenticateUser(String username, String password) {
@@ -255,7 +255,7 @@ public class DatabaseHelper {
         } catch (SQLException ex) {
             ex.printStackTrace();
         }
-        return -1;
+        return -1; // Return -1 if no ID is found or if there's an error
     }
 
     // Method to get Pizza_ID by Pizza Name
@@ -310,6 +310,8 @@ public class DatabaseHelper {
         }
         return -1;  // Return -1 if Dessert_ID is not found
     }
+
+
 
     public static List<Pizza> getPizzaDetails() {
         List<Pizza> pizzas = new ArrayList<>();
@@ -429,8 +431,28 @@ public class DatabaseHelper {
             batchInfo = createNewBatch(orderStartTime);
         }
         return batchInfo;
+        }
+/*
+    public static int getExistingBatchForPostcode(String postcode) {
+        String query = "SELECT o.Batch_ID FROM orders o " +
+                "JOIN orderitems oi ON o.Order_ID = oi.Order_ID " +
+                "WHERE o.Postcode = ? AND TIMESTAMPDIFF(MINUTE, o.Order_StartTime, NOW()) <= 3 " +
+                "GROUP BY o.Batch_ID HAVING SUM(oi.Pizza_Quantity) <= 3 LIMIT 1";
+
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+            pstmt.setString(1, postcode);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt("Batch_ID");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return -1;
     }
 
+ */
     public static BatchInfo getExistingBatchForTimeWindow(Timestamp orderStartTime) {
         String query = "SELECT b.Batch_ID, b.DeliveryDriver_Name " +
                 "FROM batches b " +
@@ -439,7 +461,6 @@ public class DatabaseHelper {
                 "    SELECT Batch_ID FROM orders " +
                 "    GROUP BY Batch_ID HAVING COUNT(*) < 3" +
                 ") LIMIT 1";
-
         try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
              PreparedStatement pstmt = conn.prepareStatement(query)) {
             pstmt.setTimestamp(1, orderStartTime);
@@ -492,7 +513,6 @@ public class DatabaseHelper {
         String query = "SELECT Batch_ID FROM orders " +
                 "WHERE Postcode = ? AND TIMESTAMPDIFF(MINUTE, Order_StartTime, NOW()) <= 3 " +
                 "GROUP BY Batch_ID HAVING SUM(Pizza_Quantity) <= 3 LIMIT 1";
-
         try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
              PreparedStatement pstmt = conn.prepareStatement(query)) {
             pstmt.setString(1, postcode);
@@ -540,7 +560,6 @@ public class DatabaseHelper {
         }
         return null;
     }
-
     public static int createOrderInBatch(int customerId, double totalAmount, int batchId, String postcode, String deliveryDriver, Timestamp orderStartTime) throws SQLException {
         int orderId = generateUniqueOrderId();
         String insertOrderSQL = "INSERT INTO orders (Order_ID, Customer_ID, Total_Amount, Batch_ID, Postcode, DeliveryDriver_ID, Order_Status, Order_Date, Order_StartTime) " +
@@ -555,7 +574,6 @@ public class DatabaseHelper {
             pstmt.setString(6, deliveryDriver);
             pstmt.setTimestamp(7, orderStartTime);
             pstmt.executeUpdate();
-
             // After inserting the order, check if batch is full
             if (isBatchFull(batchId)) {
                 markDriverUnavailable(deliveryDriver);
@@ -567,7 +585,6 @@ public class DatabaseHelper {
         return -1;
     }
 
-// Helper methods for Batching creation
     public static boolean isBatchFull(int batchId) {
         int orderCount = getOrderCountInBatch(batchId);
         return orderCount >= 3;
@@ -586,7 +603,6 @@ public class DatabaseHelper {
         }
         return 0;
     }
-
     public static double getDessertPriceByName(String dessertName) {
         double price = 0.0;
         String query = "SELECT dessert_price FROM Desserts WHERE dessert_name = ?";
@@ -799,26 +815,24 @@ public class DatabaseHelper {
             switch (item.getItemType()) {
                 case PIZZA:
                     int pizzaId = getPizzaIdByName(item.getName());
-                    pstmt.setInt(4, pizzaId);
+                    pstmt.setInt(4, pizzaId); // Pizza_ID
                     pstmt.setNull(5, Types.INTEGER); // Dessert_ID
                     pstmt.setNull(6, Types.INTEGER); // Drink_ID
-                    pstmt.setInt(7, item.getQuantity()); // OrderItem_Amount for pizzas
-                  // Pizza_Quantity
+                    pstmt.setInt(7, item.getQuantity()); // Pizza_Quantity for pizzas
                     break;
                 case DESSERT:
                     int dessertId = getDessertIdByName(item.getName());
                     pstmt.setNull(4, Types.INTEGER); // Pizza_ID
-                    pstmt.setInt(5, dessertId);
+                    pstmt.setInt(5, dessertId); // Dessert_ID
                     pstmt.setNull(6, Types.INTEGER); // Drink_ID
-                    pstmt.setNull(7, 0); // No OrderItem_Amount for non-pizza items// Pizza_Quantity set to 0 for non-pizza items
+                    pstmt.setNull(7, Types.INTEGER); // Pizza_Quantity set to null for non-pizza items
                     break;
                 case DRINK:
                     int drinkId = getDrinkIdByName(item.getName());
                     pstmt.setNull(4, Types.INTEGER); // Pizza_ID
                     pstmt.setNull(5, Types.INTEGER); // Dessert_ID
-                    pstmt.setInt(6, drinkId);
-                    pstmt.setNull(7, 0); // No OrderItem_Amount for non-pizza items
-                    // Pizza_Quantity set to 0 for non-pizza items
+                    pstmt.setInt(6, drinkId); // Drink_ID
+                    pstmt.setNull(7, Types.INTEGER); // Pizza_Quantity set to null for non-pizza items
                     break;
                 default:
                     throw new IllegalArgumentException("Unknown item type: " + item.getItemType());
@@ -831,7 +845,9 @@ public class DatabaseHelper {
             e.printStackTrace();
             // Rollback on failure
             try {
-                conn.rollback();
+                if (conn != null) {
+                    conn.rollback();
+                }
             } catch (SQLException rollbackEx) {
                 rollbackEx.printStackTrace();
             }

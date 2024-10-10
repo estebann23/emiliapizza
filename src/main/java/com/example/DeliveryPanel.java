@@ -8,7 +8,6 @@ import java.util.LinkedList;
 import java.util.Queue;
 import java.sql.Timestamp;
 
-
 public class DeliveryPanel extends JPanel {
     private static final Queue<OrderQueueEntry> orderQueue = new LinkedList<>();
     private final PizzaDeliveryApp app;
@@ -22,6 +21,7 @@ public class DeliveryPanel extends JPanel {
     private JButton submitDiscountButton;
     private CartPanel cartPanel;
     private UserPanel userPanel;
+
 
     public DeliveryPanel(PizzaDeliveryApp app) {
         this.app = app;
@@ -129,8 +129,6 @@ public class DeliveryPanel extends JPanel {
         }
     }
 
-
-
     private void addToOrderQueue(int customerId, double totalAmount, int batchId, String postcode) {
         orderQueue.add(new OrderQueueEntry(customerId, totalAmount, batchId, postcode));
         JOptionPane.showMessageDialog(this, "Your order has been added to the queue. We will notify you when a driver is available.", "Info", JOptionPane.INFORMATION_MESSAGE);
@@ -150,6 +148,10 @@ public class DeliveryPanel extends JPanel {
         if (discountValue > 0) {
             totalAmount -= totalAmount * discountValue;
         }
+
+        // Include delivery cost if any
+        double deliveryCost = 3.50; // Example delivery cost
+        totalAmount += deliveryCost;
 
         return totalAmount;
     }
