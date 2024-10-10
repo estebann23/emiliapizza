@@ -14,6 +14,7 @@ public class PizzaDeliveryApp {
     private PizzaPanel pizzaPanel;
     private String currentUsername;
     private double currentDiscountValue = 0.0;
+    private double currentFixedDiscountAmount = 0.0;
     private DatabaseHelper databaseHelper; // Added instance variable
 
     public PizzaDeliveryApp() {
@@ -145,6 +146,11 @@ public class PizzaDeliveryApp {
 
     public void setCurrentDiscountValue(double discountValue) {
         this.currentDiscountValue = discountValue;
+    }
+
+    public void setCurrentFixedDiscountAmount(double amount) { this.currentFixedDiscountAmount = amount;
+    }
+    public double getCurrentFixedDiscountAmount() { return this.currentFixedDiscountAmount;
     }
 
     public void clearCart() {

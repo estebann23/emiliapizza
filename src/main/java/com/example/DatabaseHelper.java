@@ -7,13 +7,14 @@ import javax.swing.Timer;
 import java.sql.*;
 import java.util.*;
 import java.util.UUID;
+import java.util.Date;
 
 public class DatabaseHelper {
 
     private static PizzaDeliveryApp app;
     private static final String DB_URL = "jdbc:mysql://localhost:3306/PIZZARE";
     private static final String USER = "root";
-    private static final String PASS = "02072005";
+    private static final String PASS = "mysql2311";
     private static int currentOrderId = -1;
     private Map<Integer, Timer> batchTimers = new HashMap<>();
 
@@ -618,4 +619,56 @@ public class DatabaseHelper {
         String query = "SELECT COUNT(*) FROM orders WHERE Batch_ID = ?";
         return executeQueryForSingleResult(query, rs -> rs.getInt(1), batchId).orElse(0);
     }
+
+    // ------------------ BirthdayDiscount Handling ------------------
+    public Optional<CustomerBirthdayInfo> getCustomerBirthdayInfo(String username) {
+        String query = "SELECT Birthdate, canBirthday FROM Customers WHERE username = ?";
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+
+            pstmt.setString(1, username);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                Date birthdate = rs.getDate("Birthdate");
+                boolean canBirthday = rs.getBoolean("canBirthday");
+                return Optional.of(new CustomerBirthdayInfo(birthdate, canBirthday));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return Optional.empty();
+    }
+
+
+    public void setCanBirthdayUsed(String username) {
+        String updateSQL = "UPDATE Customers SET canBirthday = false WHERE Username = ?";
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(updateSQL)) {
+
+            pstmt.setString(1, username);
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static class CustomerBirthdayInfo {
+        private final Date birthdate;
+        private final boolean canBirthday;
+
+        public CustomerBirthdayInfo(Date birthdate, boolean canBirthday) {
+            this.birthdate = birthdate;
+            this.canBirthday = canBirthday;
+        }
+
+        public Date getBirthdate() {
+            return birthdate;
+        }
+
+        public boolean canUseBirthdayDiscount() {
+            return canBirthday;
+        }
+    }
+
 }
