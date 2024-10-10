@@ -40,6 +40,7 @@ public class LoginPanel extends JPanel {
         JPanel buttonPanel = new JPanel();
         JButton loginButton = createButton("Log In", Color.GREEN);
         JButton createAccountButton = createButton("Create Account", Color.RED);
+        createAccountButton.addActionListener(e -> app.navigateTo(PanelNames.CREATE_ACCOUNT_PANEL));
 
         buttonPanel.add(loginButton);
         buttonPanel.add(createAccountButton);
@@ -60,7 +61,6 @@ public class LoginPanel extends JPanel {
                 JOptionPane.showMessageDialog(this, "Invalid login", "Error", JOptionPane.ERROR_MESSAGE);
             }
         });
-        createAccountButton.addActionListener(e -> app.navigateTo(PanelNames.CREATE_ACCOUNT_PANEL));
     }
 
     private JLabel createHeaderLabel(String text) {

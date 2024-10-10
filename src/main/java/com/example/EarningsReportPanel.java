@@ -12,7 +12,7 @@ public class EarningsReportPanel extends JPanel {
     private JTextField ageMaxField;
     private JButton generateReportButton;
     private JLabel earningsLabel;
-    static final String DB_URL = "jdbc:mysql://localhost:3306/emiliadb";
+    static final String DB_URL = "jdbc:mysql://localhost:3306/pizzare";
     static final String USER = "root";
     static final String PASS = "mysql2311";
     public EarningsReportPanel(PizzaDeliveryApp app) {

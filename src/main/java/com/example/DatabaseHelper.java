@@ -11,7 +11,7 @@ import java.util.UUID;
 
 public class DatabaseHelper {
     private static PizzaDeliveryApp app;
-    private static final String DB_URL = "jdbc:mysql://localhost:3306/emiliadb";
+    private static final String DB_URL = "jdbc:mysql://localhost:3306/pizzare";
     private static final String USER = "root";
     private static final String PASS = "mysql2311";
     private static int currentOrderId = -1;
@@ -95,6 +95,10 @@ public class DatabaseHelper {
         return uniqueId;
     }
 
+    public static void setCurrentOrderId(int orderId) {
+        currentOrderId = orderId;
+    }
+
     public static boolean updateOrderStatusToCanceled(int orderId) {
         String updateOrderSQL = "UPDATE orders SET Order_Status = 'Canceled', Order_EndTime = NOW() WHERE Order_ID = ?";
 
@@ -161,6 +165,7 @@ public class DatabaseHelper {
     public static boolean createAccount(String name, String gender, String birthdate, String emailAddress, String phoneNumber, String username, String password) {
         String checkUserSQL = "SELECT COUNT(*) FROM Customers WHERE Username = ?";
         String checkEmailSQL = "SELECT COUNT(*) FROM Customers WHERE Email_Address = ?";
+        String getMaxCustomerIdSQL = "SELECT MAX(Customer_ID) FROM Customers";
         String insertSQL = "INSERT INTO Customers (Customer_ID, Name, Gender, Birthdate, Email_Address, Phone_Number, Username, Password) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS)) {
@@ -184,11 +189,20 @@ public class DatabaseHelper {
                 }
             }
 
-            String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
-            String customerId = generateCustomerID();
+            // Generate a new Customer_ID (max customer_id + 1)
+            int newCustomerId = 1;
+            try (PreparedStatement getMaxCustomerIdStmt = conn.prepareStatement(getMaxCustomerIdSQL)) {
+                ResultSet rs = getMaxCustomerIdStmt.executeQuery();
+                if (rs.next()) {
+                    newCustomerId = rs.getInt(1) + 1;
+                }
+            }
 
+            String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
+
+            // Insert new customer with the unique Customer_ID
             try (PreparedStatement pstmt = conn.prepareStatement(insertSQL)) {
-                pstmt.setString(1, customerId);
+                pstmt.setInt(1, newCustomerId);
                 pstmt.setString(2, name);
                 pstmt.setString(3, gender);
                 pstmt.setString(4, birthdate);
@@ -204,7 +218,6 @@ public class DatabaseHelper {
             return false;
         }
     }
-
 
     // Authenticates a user during login
     public static boolean authenticateUser(String username, String password) {
@@ -242,7 +255,7 @@ public class DatabaseHelper {
         } catch (SQLException ex) {
             ex.printStackTrace();
         }
-        return -1; // Return -1 if no ID is found or if there's an error
+        return -1;
     }
 
     // Method to get Pizza_ID by Pizza Name
@@ -297,8 +310,6 @@ public class DatabaseHelper {
         }
         return -1;  // Return -1 if Dessert_ID is not found
     }
-
-
 
     public static List<Pizza> getPizzaDetails() {
         List<Pizza> pizzas = new ArrayList<>();
@@ -412,17 +423,71 @@ public class DatabaseHelper {
 
         return desserts;
     }
-    public static int getOrCreateBatchForOrder(String postcode) {
-        int batchId = getExistingBatchForPostcode(postcode);
-        int currentPizzaCount = (batchId != -1) ? getPizzaCountInBatch(batchId) : 0;
-
-        // If no suitable batch exists or the batch has reached the maximum capacity, create a new batch
-        if (batchId == -1 || currentPizzaCount >= 3) {
-            batchId = createNewBatch();
+    public static BatchInfo getOrCreateBatchForOrder(Timestamp orderStartTime) {
+        BatchInfo batchInfo = getExistingBatchForTimeWindow(orderStartTime);
+        if (batchInfo == null) {
+            batchInfo = createNewBatch(orderStartTime);
         }
-
-        return batchId;
+        return batchInfo;
     }
+
+    public static BatchInfo getExistingBatchForTimeWindow(Timestamp orderStartTime) {
+        String query = "SELECT b.Batch_ID, b.DeliveryDriver_Name " +
+                "FROM batches b " +
+                "WHERE ABS(TIMESTAMPDIFF(MINUTE, b.Created_At, ?)) <= 3 " +
+                "AND b.Batch_ID IN (" +
+                "    SELECT Batch_ID FROM orders " +
+                "    GROUP BY Batch_ID HAVING COUNT(*) < 3" +
+                ") LIMIT 1";
+
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+            pstmt.setTimestamp(1, orderStartTime);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                int batchId = rs.getInt("Batch_ID");
+                String driverName = rs.getString("DeliveryDriver_Name");
+                return new BatchInfo(batchId, driverName);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null; // No existing batch found
+    }
+
+    public static BatchInfo createNewBatch(Timestamp batchCreatedAt) {
+        int batchId = Math.abs(UUID.randomUUID().hashCode());
+        String driverName = getAvailableDriver();
+        if (driverName == null) {
+            return null;
+        }
+        String insertSQL = "INSERT INTO batches (Batch_ID, Batch_Created_At, DeliveryDriver_Name) VALUES (?, ?, ?)";
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(insertSQL)) {
+            pstmt.setInt(1, batchId);
+            pstmt.setTimestamp(2, batchCreatedAt);
+            pstmt.setString(3, driverName);
+            pstmt.executeUpdate();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return new BatchInfo(batchId, driverName);
+    }
+
+    public static String getAvailableDriver() {
+        String query = "SELECT DeliveryDriver_Name FROM deliverydrivers WHERE isAvailable = 1 LIMIT 1";
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                return rs.getString("DeliveryDriver_Name");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
     public static int getExistingBatchForPostcode(String postcode) {
         String query = "SELECT Batch_ID FROM orders " +
                 "WHERE Postcode = ? AND TIMESTAMPDIFF(MINUTE, Order_StartTime, NOW()) <= 3 " +
@@ -440,20 +505,6 @@ public class DatabaseHelper {
         }
         return -1;
     }
-
-    public static int createNewBatch() {
-        int batchId = Math.abs(UUID.randomUUID().hashCode());
-        String insertSQL = "INSERT INTO batches (Batch_ID, Created_At) VALUES (?, NOW())";
-        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
-             PreparedStatement pstmt = conn.prepareStatement(insertSQL)) {
-            pstmt.setInt(1, batchId);
-            pstmt.executeUpdate();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return batchId;
-    }
-
 
     private static int generateUniqueBatchId() {
         return Math.abs(UUID.randomUUID().hashCode());
@@ -489,10 +540,11 @@ public class DatabaseHelper {
         }
         return null;
     }
-    public static int createOrderInBatch(int customerId, double totalAmount, int batchId, String postcode, String deliveryDriver) throws SQLException {
+
+    public static int createOrderInBatch(int customerId, double totalAmount, int batchId, String postcode, String deliveryDriver, Timestamp orderStartTime) throws SQLException {
         int orderId = generateUniqueOrderId();
-        String insertOrderSQL = "INSERT INTO orders (Order_ID, Customer_ID, Total_Amount, Batch_ID, Postcode, DeliveryDriver_ID, Order_Status, Order_Date) " +
-                "VALUES (?, ?, ?, ?, ?, (SELECT DeliveryDriver_ID FROM deliverydrivers WHERE DeliveryDriver_Name = ?), 'Order Confirmed', NOW())";
+        String insertOrderSQL = "INSERT INTO orders (Order_ID, Customer_ID, Total_Amount, Batch_ID, Postcode, DeliveryDriver_ID, Order_Status, Order_Date, Order_StartTime) " +
+                "VALUES (?, ?, ?, ?, ?, (SELECT DeliveryDriver_ID FROM deliverydrivers WHERE DeliveryDriver_Name = ?), 'Order Confirmed', NOW(), ?)";
         try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
              PreparedStatement pstmt = conn.prepareStatement(insertOrderSQL)) {
             pstmt.setInt(1, orderId);
@@ -501,12 +553,38 @@ public class DatabaseHelper {
             pstmt.setInt(4, batchId);
             pstmt.setString(5, postcode);
             pstmt.setString(6, deliveryDriver);
+            pstmt.setTimestamp(7, orderStartTime);
             pstmt.executeUpdate();
+
+            // After inserting the order, check if batch is full
+            if (isBatchFull(batchId)) {
+                markDriverUnavailable(deliveryDriver);
+            }
             return orderId;
         } catch (SQLException e) {
             e.printStackTrace();
         }
         return -1;
+    }
+
+// Helper methods for Batching creation
+    public static boolean isBatchFull(int batchId) {
+        int orderCount = getOrderCountInBatch(batchId);
+        return orderCount >= 3;
+    }
+    public static int getOrderCountInBatch(int batchId) {
+        String query = "SELECT COUNT(*) FROM orders WHERE Batch_ID = ?";
+        try (Connection conn = DriverManager.getConnection(DB_URL, USER, PASS);
+             PreparedStatement pstmt = conn.prepareStatement(query)) {
+            pstmt.setInt(1, batchId);
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return 0;
     }
 
     public static double getDessertPriceByName(String dessertName) {

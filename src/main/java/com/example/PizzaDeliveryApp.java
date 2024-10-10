@@ -36,6 +36,7 @@ public class PizzaDeliveryApp {
         pizzaPanel = new PizzaPanel(this);
         mainPanel.add(new LoginPanel(this), PanelNames.LOGIN_PANEL);
         mainPanel.add(pizzaPanel, PanelNames.PIZZAS_PANEL);
+        mainPanel.add(new AccountCreationPanel(this), PanelNames.CREATE_ACCOUNT_PANEL);
         mainPanel.add(new DrinksPanel(this), PanelNames.DRINKS_PANEL);
         mainPanel.add(new DessertsPanel(this), PanelNames.DESSERTS_PANEL);
         mainPanel.add(new DeliveryPanel(this), PanelNames.DELIVERY_PANEL);
