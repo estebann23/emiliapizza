@@ -15,6 +15,7 @@ public class DeliveryPanel extends JPanel {
     private final PizzaDeliveryApp app;
     private final JButton cartButton;
     private final JButton userButton;
+    private final JButton backButton; // Added back button
     private JTextField postcodeField;
     private JTextField streetNameField;
     private JTextField streetNumberField;
@@ -30,6 +31,7 @@ public class DeliveryPanel extends JPanel {
         this.app = app;
         this.cartButton = new JButton("See order");
         this.userButton = new JButton("User info");
+        this.backButton = new JButton("Back"); // Initialize back button
         initialize();
     }
 
@@ -37,7 +39,7 @@ public class DeliveryPanel extends JPanel {
         setLayout(new BorderLayout());
         setBorder(new EmptyBorder(20, 20, 20, 20));
 
-        JPanel centerPanel = new JPanel(new GridLayout(8, 1));
+        JPanel centerPanel = new JPanel(new GridLayout(9, 1)); // Adjusted row count
 
         JPanel topPanel = new JPanel(new BorderLayout());
         JPanel topTextPanel = new JPanel(new GridBagLayout());
@@ -94,8 +96,15 @@ public class DeliveryPanel extends JPanel {
             }
         });
 
+        // Add the back button to the bottom of the center panel
+        backButton.addActionListener(e -> app.navigateTo(PanelNames.DESSERTS_PANEL));
+        JPanel bottomPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        bottomPanel.add(backButton);
+        centerPanel.add(bottomPanel);
+
         add(centerPanel, BorderLayout.CENTER);
     }
+
 
     private void confirmOrder() throws SQLException {
         if (isOrderConfirmed) {

@@ -46,7 +46,7 @@ public class CartPanel extends JDialog {
 
     private void initialize() {
         setLayout(new BorderLayout(10, 10));
-        setPreferredSize(new Dimension(500, 400));
+        setPreferredSize(new Dimension(700, 500));
         setResizable(false);
 
         tableModel = new DefaultTableModel(new Object[]{"Item", "Quantity", "Price", "Actions"}, 0) {
