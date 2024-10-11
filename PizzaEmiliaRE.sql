@@ -1,13 +1,13 @@
--- MySQL dump 10.13  Distrib 8.0.39, for Win64 (x86_64)
+-- MySQL dump 10.13  Distrib 8.0.38, for macos14 (arm64)
 --
--- Host: localhost    Database: emiliadb
+-- Host: 127.0.0.1    Database: pizzare
 -- ------------------------------------------------------
--- Server version	8.0.39
+-- Server version	9.0.1
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
 /*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
-/*!50503 SET NAMES utf8mb4 */;
+/*!50503 SET NAMES utf8 */;
 /*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
 /*!40103 SET TIME_ZONE='+00:00' */;
 /*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
@@ -16,40 +16,70 @@
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
 --
--- Table structure for table `customers`
+-- Table structure for table `Batches`
 --
 
-DROP TABLE IF EXISTS `customers`;
+DROP TABLE IF EXISTS `Batches`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `customers` (
-  `Customer_ID` int NOT NULL,
+CREATE TABLE `Batches` (
+  `Batch_ID` int NOT NULL,
+  `Created_At` timestamp NOT NULL,
+  `DeliveryDriver_Name` varchar(255) NOT NULL,
+  `Postcode` varchar(10) NOT NULL,
+  `IsDispatched` tinyint(1) NOT NULL,
+  PRIMARY KEY (`Batch_ID`),
+  UNIQUE KEY `Batch_ID_UNIQUE` (`Batch_ID`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `Batches`
+--
+
+LOCK TABLES `Batches` WRITE;
+/*!40000 ALTER TABLE `Batches` DISABLE KEYS */;
+INSERT INTO `Batches` VALUES (87408264,'2024-10-10 19:26:15','Christian McCaffrey','6211',0),(360447264,'2024-10-10 19:07:46','Robert Griffin III','6221',0),(497167814,'2024-10-10 23:46:00','Justin Jefferson','6226',1),(535431610,'2024-10-10 21:40:28','Justin Jefferson','6221',1),(943980677,'2024-10-10 19:05:11','Robert Griffin III','6226',0),(1247384157,'2024-10-10 20:08:30','Brian Robinson Jr','6226',0),(1408561096,'2024-10-10 18:49:09','Robert Griffin III','6211',0),(2102906456,'2024-10-10 20:50:37','Brian Robinson Jr','6226',1),(2113267075,'2024-10-11 00:07:42','Justin Jefferson','6226',1);
+/*!40000 ALTER TABLE `Batches` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `Customers`
+--
+
+DROP TABLE IF EXISTS `Customers`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `Customers` (
+  `Customer_ID` int NOT NULL AUTO_INCREMENT,
   `Name` varchar(100) NOT NULL,
   `Gender` varchar(10) DEFAULT NULL,
   `Birthdate` date DEFAULT NULL,
   `Postcode_ID` int DEFAULT NULL,
   `Street_Number` int DEFAULT NULL,
   `Email_Address` varchar(100) DEFAULT NULL,
-  `Phone_Number` varchar(9) DEFAULT NULL,
+  `Phone_Number` varchar(15) DEFAULT NULL,
   `Username` varchar(50) NOT NULL,
-  `Password` varchar(100) DEFAULT NULL,
+  `Password` varchar(255) DEFAULT NULL,
   `canBirthDay` tinyint(1) DEFAULT '1',
   `canDiscount` tinyint(1) DEFAULT '0',
   `PizzasOrdered` int DEFAULT '0',
+  `Street_Name` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`Customer_ID`),
+  UNIQUE KEY `Customer_ID_UNIQUE` (`Customer_ID`),
   KEY `Postcode_ID` (`Postcode_ID`),
   CONSTRAINT `customers_ibfk_1` FOREIGN KEY (`Postcode_ID`) REFERENCES `postcode` (`Postcode_ID`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Dumping data for table `customers`
+-- Dumping data for table `Customers`
 --
 
-LOCK TABLES `customers` WRITE;
-/*!40000 ALTER TABLE `customers` DISABLE KEYS */;
-INSERT INTO `customers` VALUES (1,'admin team','non-gender','2000-01-01',NULL,NULL,'admin@admin.com','674947181','admin','$2a$10$fA326k4jnbs.IE.WCYiXquE0aRS4J8CN1gIevY5XFeshfsH3SUeTO',1,0,0);
-/*!40000 ALTER TABLE `customers` ENABLE KEYS */;
+LOCK TABLES `Customers` WRITE;
+/*!40000 ALTER TABLE `Customers` DISABLE KEYS */;
+INSERT INTO `Customers` VALUES (1,'Ramez','Male','2005-05-07',19,50,'Ramezb275@gmail.com','0627579368','admin','$2a$10$ROrOQ0kVnvL5/8XeUZ5y4eLg4DEiwW8tWPcKutCLTsHlq7FFm87nC',1,0,0,'ac'),(2,'Esteban ','Male','2004-08-04',19,50,'Esteban123@gmail.com','0627578790','esteban','$2a$10$GaiDs4E7exV5.k.dGjui8O3zJyUDUCa/N/oIx2Nl6T84rcawPTEC2',1,0,0,'ac'),(3,'Tina ','female','2003-05-23',19,50,'tina@tina.com','066662728','tina','$2a$10$VvZZpXqAwOvxZQoUXRTese.gLNv025.tdukX2oQU5IjvnSdCKxKpa',1,0,0,'ace'),(4,'Tom ','Male','1999-09-02',14,50,'tom@gmail.com','062756893','tom','$2a$10$BncU1ujO.7/wGT5AfC.U6ernvt5GgzAywIrF2HZdrMUuRE56PL0Zq',1,0,0,'ree'),(5,'ben','male','2005-07-05',19,55,'ben@gmail.com','062757','ben','$2a$10$6oSnf5fdcqB4PhgGvnLPBOtN8OHza2LBXBoQe1xSmgZw7DVqChw.6',1,0,0,'wef'),(6,'john','male','2024-10-10',19,60,'john@gmail.com','0682374','john','$2a$10$jhLiCyGYCoxzMH6k66QMteVSygvLNXaFUzmHvN9Q1LjSsWoVjrNTS',0,0,0,'wcds'),(7,'karol','male','2024-10-10',19,45,'karol@gmail.com','062343','karol','$2a$10$gJMBa6aiKdrY8bFiZb6KdOP1bR36f1/V7XdiZopE0eB29p9MzW5Gy',0,0,0,'sce'),(8,'james','male','2024-10-10',14,35,'james@gmail','0628453','james','$2a$10$NB3qLes9jfyyyYoGUF/Vp.ALb6/z5AXAk05PgjoMIVix5exfsXq4a',0,0,0,'cdw'),(9,'nasri','Male','2003-10-10',19,35,'nasri@gmai.com','62747822','nasri','$2a$10$3LR5QLlzF8F054tKUxNXxuI/FpyWviMiCIglyzI8RkCRtDgmok6lG',0,0,0,'trew'),(10,'hanna','male','2006-10-11',19,35,'hanna@gmail','06234322','hanna','$2a$10$O9Z9XtwFsNC5kqHDQ47B/uBSbBkFH/McRccvYyuzwLGghudYPjv7a',0,0,0,'sree'),(11,'sief','male','2005-10-11',19,23,'sief@gmail','237672334','sief','$2a$10$TkPB8.u.2MDnWGIKtAln/uLRaOr08EDyCW38NRgw12CoVGX/lm0qu',0,0,0,'street');
+/*!40000 ALTER TABLE `Customers` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -124,7 +154,7 @@ CREATE TABLE `discountcodes` (
 
 LOCK TABLES `discountcodes` WRITE;
 /*!40000 ALTER TABLE `discountcodes` DISABLE KEYS */;
-INSERT INTO `discountcodes` VALUES (1,0.90,1,'2311'),(2,0.50,1,'1210'),(3,0.10,1,'0408'),(4,0.15,1,'2002'),(5,0.18,1,'2004'),(6,0.23,1,'6226'),(7,0.20,1,'6213');
+INSERT INTO `discountcodes` VALUES (1,0.25,1,'2311'),(2,0.50,1,'1210'),(3,0.10,1,'0408'),(4,0.15,1,'2002'),(5,0.18,1,'2004'),(6,0.23,1,'6226'),(7,0.20,1,'6213');
 /*!40000 ALTER TABLE `discountcodes` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -163,19 +193,19 @@ DROP TABLE IF EXISTS `orderitems`;
 CREATE TABLE `orderitems` (
   `OrderItem_ID` int NOT NULL,
   `Order_ID` int DEFAULT NULL,
-  `Customer_ID` int DEFAULT NULL,
+  `Customer_ID` int NOT NULL,
   `Pizza_ID` int DEFAULT NULL,
   `Dessert_ID` int DEFAULT NULL,
   `Drink_ID` int DEFAULT NULL,
-  `OrderItem_Amount` int NOT NULL,
+  `Pizza_Quantity` int DEFAULT '1',
   PRIMARY KEY (`OrderItem_ID`),
   KEY `Order_ID` (`Order_ID`),
   KEY `Customer_ID` (`Customer_ID`),
   KEY `Pizza_ID` (`Pizza_ID`),
   KEY `Dessert_ID` (`Dessert_ID`),
   KEY `Drink_ID` (`Drink_ID`),
+  CONSTRAINT `Customer_ID` FOREIGN KEY (`Customer_ID`) REFERENCES `Customers` (`Customer_ID`),
   CONSTRAINT `orderitems_ibfk_1` FOREIGN KEY (`Order_ID`) REFERENCES `orders` (`Order_ID`),
-  CONSTRAINT `orderitems_ibfk_2` FOREIGN KEY (`Customer_ID`) REFERENCES `customers` (`Customer_ID`),
   CONSTRAINT `orderitems_ibfk_3` FOREIGN KEY (`Pizza_ID`) REFERENCES `pizzas` (`pizza_id`),
   CONSTRAINT `orderitems_ibfk_4` FOREIGN KEY (`Dessert_ID`) REFERENCES `desserts` (`dessert_id`),
   CONSTRAINT `orderitems_ibfk_5` FOREIGN KEY (`Drink_ID`) REFERENCES `drinks` (`drink_id`)
@@ -188,41 +218,49 @@ CREATE TABLE `orderitems` (
 
 LOCK TABLES `orderitems` WRITE;
 /*!40000 ALTER TABLE `orderitems` DISABLE KEYS */;
+INSERT INTO `orderitems` VALUES (6,346274031,8,NULL,2,NULL,NULL),(48,1123408966,6,1,NULL,NULL,1),(131,1502795856,4,NULL,NULL,2,NULL),(194,640336717,10,2,NULL,NULL,1),(220,85225176,7,NULL,1,NULL,NULL),(229,1004679476,5,NULL,1,NULL,NULL),(235,346274031,8,NULL,NULL,1,NULL),(261,640336717,10,NULL,NULL,1,NULL),(274,1004679476,5,2,NULL,NULL,1),(280,1982025315,11,NULL,1,NULL,NULL),(308,1004679476,5,NULL,NULL,1,NULL),(357,1982025315,11,4,NULL,NULL,1),(395,1502795856,4,3,NULL,NULL,1),(432,1123408966,6,NULL,NULL,1,NULL),(434,85225176,7,NULL,NULL,2,NULL),(495,85225176,7,3,NULL,NULL,1),(546,1123408966,6,NULL,2,NULL,NULL),(650,1805376502,4,1,NULL,NULL,10),(669,2141823730,4,5,NULL,NULL,1),(680,346274031,8,6,NULL,NULL,1),(810,85225176,7,NULL,NULL,4,NULL),(863,1805376502,4,NULL,NULL,3,NULL),(953,2141823730,4,4,NULL,NULL,1),(969,1123408966,6,5,NULL,NULL,1);
 /*!40000 ALTER TABLE `orderitems` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
--- Table structure for table `orders`
+-- Table structure for table `Orders`
 --
 
-DROP TABLE IF EXISTS `orders`;
+DROP TABLE IF EXISTS `Orders`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `orders` (
+CREATE TABLE `Orders` (
   `Order_ID` int NOT NULL,
-  `Customer_ID` int DEFAULT NULL,
-  `Total_Amount` decimal(5,2) NOT NULL,
-  `Order_Date` date NOT NULL,
+  `Customer_ID` int NOT NULL,
+  `Total_Amount` decimal(5,2) DEFAULT NULL,
+  `Order_Date` date DEFAULT NULL,
   `DeliveryDriver_ID` int DEFAULT NULL,
   `Order_Status` varchar(50) DEFAULT NULL,
   `Order_StartTime` time DEFAULT NULL,
-  `Order_ETA` time DEFAULT NULL,
   `Order_EndTime` time DEFAULT NULL,
+  `Batch_ID` int DEFAULT NULL,
+  `Postcode` varchar(10) DEFAULT NULL,
+  `DiscountCode_ID` int DEFAULT NULL,
   PRIMARY KEY (`Order_ID`),
   KEY `Customer_ID` (`Customer_ID`),
   KEY `DeliveryDriver_ID` (`DeliveryDriver_ID`),
+  KEY `DiscountCode_ID` (`DiscountCode_ID`),
+  KEY `Batch_ID` (`Batch_ID`),
+  CONSTRAINT `Batch_ID` FOREIGN KEY (`Batch_ID`) REFERENCES `Batches` (`Batch_ID`),
   CONSTRAINT `orders_ibfk_1` FOREIGN KEY (`Customer_ID`) REFERENCES `customers` (`Customer_ID`),
-  CONSTRAINT `orders_ibfk_2` FOREIGN KEY (`DeliveryDriver_ID`) REFERENCES `deliverydrivers` (`DeliveryDriver_ID`)
+  CONSTRAINT `orders_ibfk_2` FOREIGN KEY (`DeliveryDriver_ID`) REFERENCES `deliverydrivers` (`DeliveryDriver_ID`),
+  CONSTRAINT `orders_ibfk_3` FOREIGN KEY (`DiscountCode_ID`) REFERENCES `discountcodes` (`DiscountCode_ID`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Dumping data for table `orders`
+-- Dumping data for table `Orders`
 --
 
-LOCK TABLES `orders` WRITE;
-/*!40000 ALTER TABLE `orders` DISABLE KEYS */;
-/*!40000 ALTER TABLE `orders` ENABLE KEYS */;
+LOCK TABLES `Orders` WRITE;
+/*!40000 ALTER TABLE `Orders` DISABLE KEYS */;
+INSERT INTO `Orders` VALUES (85225176,7,5.65,'2024-10-10',5,'Canceled','22:50:37','22:54:11',2102906456,'6226',1),(346274031,8,10.79,'2024-10-10',1,'Order Confirmed','23:40:28','12:10:28',535431610,'6221',NULL),(640336717,10,33.09,'2024-10-11',1,'Canceled','01:46:00','01:49:13',497167814,'6226',NULL),(1004679476,5,22.17,'2024-10-10',5,'Canceled','22:08:30','22:09:44',1247384157,'6226',4),(1123408966,6,22.40,'2024-10-10',5,'Order Confirmed','22:53:22','23:23:22',2102906456,'6226',4),(1502795856,4,11.45,'2024-10-10',1,'Canceled','23:42:28','23:46:20',535431610,'6221',1),(1805376502,4,39.52,'2024-10-11',1,'Order Confirmed','02:09:21','02:39:21',2113267075,'6226',NULL),(1982025315,11,6.11,'2024-10-11',1,'Canceled','02:07:42','02:11:01',2113267075,'6226',1),(2141823730,4,17.23,'2024-10-11',1,'Canceled','01:48:05','02:18:05',497167814,'6226',NULL);
+/*!40000 ALTER TABLE `Orders` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -235,7 +273,6 @@ DROP TABLE IF EXISTS `pizzas`;
 CREATE TABLE `pizzas` (
   `pizza_id` int NOT NULL,
   `pizza_name` varchar(100) DEFAULT NULL,
-  `pizza_baseprice` decimal(5,2) DEFAULT NULL,
   `pizza_finalprice` decimal(5,2) DEFAULT NULL,
   `pizza_isvegan` tinyint(1) DEFAULT NULL,
   `pizza_isvegetarian` tinyint(1) DEFAULT NULL,
@@ -249,7 +286,7 @@ CREATE TABLE `pizzas` (
 
 LOCK TABLES `pizzas` WRITE;
 /*!40000 ALTER TABLE `pizzas` DISABLE KEYS */;
-INSERT INTO `pizzas` VALUES (1,'Margherita',NULL,NULL,0,1),(2,'BBQ Chicken',NULL,NULL,0,0),(3,'Kebab',NULL,NULL,0,0),(4,'Pepperoni',NULL,NULL,0,0),(5,'Quatro Formaggio',NULL,NULL,0,1),(6,'Tartufo Porcino',NULL,NULL,0,0),(7,'Vegan Riviera',NULL,NULL,1,1),(8,'Tropical Delight',NULL,NULL,0,0),(9,'Settebello',NULL,NULL,0,0),(10,'Bresca',NULL,NULL,0,0);
+INSERT INTO `pizzas` VALUES (1,'Margherita',3.05,0,1),(2,'BBQ Chicken',4.96,0,0),(3,'Kebab',6.10,0,0),(4,'Pepperoni',3.05,0,0),(5,'Quatro Formaggio',10.68,0,1),(6,'Tartufo Porcino',5.34,0,0),(7,'Vegan Riviera',6.87,1,1),(8,'Tropical Delight',4.20,0,0),(9,'Settebello',8.77,0,0),(10,'Bresca',5.34,0,0);
 /*!40000 ALTER TABLE `pizzas` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -343,4 +380,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2024-09-30 16:48:20
+-- Dump completed on 2024-10-11  4:10:29
